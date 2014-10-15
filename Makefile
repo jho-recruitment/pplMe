@@ -1,26 +1,30 @@
 # Makefile for the pplMe projectlette.
 
 
-# Environment
+# Environment.
 SHELL = /bin/bash
 
 
-# Build the Gubbins
+# Build the Gubbins.
 .PHONY:	all
 all:	pplMe
-
 
 .PHONY:	3rdParty
 3rdParty:
 	cd 3rdParty && $(MAKE)
 
-
 .PHONY:	pplMe
 pplMe:	3rdParty
-	cd src && $(MAKE)
+	cd src && $(MAKE) THIRDPARTY=$(realpath 3rdParty)
 
 
-# Clean Up
+# Test the Gubbins.
+.PHONY:	test
+test:
+	cd src && $(MAKE) THIRDPARTY=$(realpath 3rdParty) test
+
+
+# Clean Up.
 .PHONY:	clean
 clean:
 	cd src && $(MAKE) clean
