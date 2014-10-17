@@ -11,10 +11,11 @@ PPLME_SRC_DIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Various libraries that we rely upon.
 googletest = $(THIRDPARTY)/googletest
+boost = $(THIRDPARTY)/boost_1_56_0
 
 
 # Classic flags and whatnot for the builtin rules.
-CPPFLAGS = -I$(googletest)/include -I$(PPLME_SRC_DIR)
+CPPFLAGS = -I$(googletest)/include -I$(boost) -I$(PPLME_SRC_DIR)
 CXXFLAGS = -m64 -std=c++11 -Wall -Wextra -Werror -pedantic-errors -g -O2
 LDFLAGS = -g -O2
 LDLIBS = -lpthread $(googletest)/make/gtest_main.a

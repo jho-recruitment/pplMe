@@ -5,7 +5,7 @@
  */
 
 
-#include <ostream>
+#include <sstream>
 #include <gtest/gtest.h>
 #include "libpplmecore/discriminated_value.h"
 
