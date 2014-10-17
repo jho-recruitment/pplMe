@@ -7,6 +7,8 @@
 #define PPLME_LIBPPLMECORE_DISCRIMINATEDVALUE_H_
 
 
+#include <ostream>
+#include <typeinfo>
 #include <utility>
 
 
@@ -64,6 +66,39 @@ class DiscriminatedValue : public D {
  private:
   ValueType value_;
 };
+
+
+template <typename V, typename D>
+bool operator==(DiscriminatedValue<V, D> const& lhs,
+                DiscriminatedValue<V, D> const& rhs)
+{
+  return lhs.value() == rhs.value();
+}
+
+
+template <typename V, typename D>
+bool operator!=(DiscriminatedValue<V, D> const& lhs,
+                DiscriminatedValue<V, D> const& rhs)
+{
+  return !operator==(lhs, rhs);
+}
+
+
+/**
+ *  @remarks
+ *  Not the finest implementation (not just because we're assuming that
+ *  std::type_info::name() returns human-readable sanity); however, it'll
+ *  do for a first pass.  Alternative implementations could potentially
+ *  look for some sort of Traits<D>::Name or sommat.  In any case, it's always
+ *  possible to override by defining a similar function in the same namespace
+ *  as the enclosing namespace for D.
+ */
+template <typename V, typename D>
+std::ostream& operator<<(std::ostream& stream,
+                         DiscriminatedValue<V, D> const& value)
+{
+  return stream << "[" << typeid(D).name() << "(" << value.value() << ")]";
+}
 
 
 }  // namespace core
