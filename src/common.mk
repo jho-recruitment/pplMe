@@ -1,6 +1,10 @@
 # Makefile that does the bulk of the business of building pplMe.
 
 
+# Environment.
+SHELL = /bin/bash
+
+
 # Rely upon the fact that this makefile is in the root src directory.
 PPLME_SRC_DIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 

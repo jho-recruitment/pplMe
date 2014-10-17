@@ -5,6 +5,10 @@
 SHELL = /bin/bash
 
 
+# Stuff that you might want to override.
+export DOXYGEN = doxygen
+
+
 # Build the Gubbins.
 .PHONY:	all
 all:	pplMe
@@ -24,8 +28,15 @@ test:
 	cd src && $(MAKE) THIRDPARTY=$(realpath 3rdParty) test
 
 
+# Render the documentation.
+.PHONY:	doco
+doco:
+	cd doco && $(MAKE) doco
+
+
 # Clean Up.
 .PHONY:	clean
 clean:
+	cd doco && $(MAKE) clean
 	cd src && $(MAKE) clean
 	cd 3rdParty && $(MAKE) clean

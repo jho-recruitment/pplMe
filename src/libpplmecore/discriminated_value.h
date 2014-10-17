@@ -30,6 +30,8 @@ namespace core {
  *
  *  Example:
  *  @code
+ *  namespace system {
+ *
  *  struct SystemIdTag {};
  *
  *  using SystemId = pplme::core::DiscriminatedValue<uint32_t, SystemIdTag>;
@@ -43,6 +45,8 @@ namespace core {
  *  {
  *    return stream << system_id.value();
  *  }
+ *
+ *  }  // namespace
  *  @endcode
  */
 template <typename V, typename D>
