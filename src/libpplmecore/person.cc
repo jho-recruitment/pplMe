@@ -26,7 +26,7 @@ Person::Person(PersonId id,
                boost::gregorian::date date_of_birth,
                GeoPosition location_of_home) :
     id_{id},
-    name_{name},
+    name_{std::move(name)},
     date_of_birth_{date_of_birth},
     location_of_home_{location_of_home}
 {}

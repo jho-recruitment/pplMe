@@ -1,4 +1,4 @@
-# Makefile for pplMe's libpplmecore
+# Makefile for pplMe's libpplmecore.
 
 component = libpplmecore
 

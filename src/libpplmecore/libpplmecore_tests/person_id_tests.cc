@@ -1,6 +1,6 @@
 /**
  *  @file
- *  @brief   Tests for pplme::core::PersonId::Type and friends.
+ *  @brief   Tests for pplme::core::PersonId and friends.
  *  @author  j.ho
  */
 

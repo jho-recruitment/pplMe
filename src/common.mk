@@ -18,18 +18,27 @@ boost = $(THIRDPARTY)/boost_1_56_0
 CPPFLAGS = -I$(googletest)/include -I$(boost) -I$(PPLME_SRC_DIR)
 CXXFLAGS = -m64 -std=c++11 -Wall -Wextra -Werror -pedantic-errors -g -O2
 LDFLAGS = -g -O2
-LDLIBS = -lpthread $(googletest)/make/gtest_main.a
+LDLIBS = -lpthread
+GTEST_LDLIBS = $(googletest)/make/gtest_main.a
 
 
-# Stuffs related to the library at hand.
+# Stuffs related to the library/binary at hand.
 src = $(wildcard *.cc)
 objs = $(src:.cc=.o)
-lib = $(patsubst lib%,lib%.a,$(component))
 
 
+ifneq ($(filter lib%,$(component)),)
 # Build that library!
-$(lib):	$(objs)
-	$(AR) $(ARFLAGS) $@ $^
+lib = $(patsubst lib%,lib%.a,$(component))
+.PHONY:		$(component)
+$(component):	$(lib)
+$(lib):		$(objs)
+		$(AR) $(ARFLAGS) $@ $^
+else
+# Build that binary!
+$(component):	$(objs)
+		$(CXX) $(LDFLAGS) $(LDLIBS) $^ $(ALL_PPLME_LIBS) -o $@
+endif
 
 
 # Stuffs related to testing the library at hand.
@@ -40,8 +49,9 @@ tests_bin = $(tests_dir)/$(component)_tests
 
 
 # Build those tests!
-$(tests_bin):	$(lib) $(tests_objs)
-		$(CXX) $(LDFLAGS) $(LDLIBS) $^ $(lib) -o $@
+$(tests_bin):	$(tests_objs) $(lib)
+		$(CXX) $(LDFLAGS) $(LDLIBS) $(GTEST_LDLIBS) \
+			$^ $(ALL_PPLME_LIBS) -o $@
 
 
 # Run those tests!
@@ -53,4 +63,4 @@ test:	$(tests_bin)
 # Clean all the things!
 .PHONY:	clean
 clean:
-	-rm $(tests_bin) $(tests_objs) $(lib) $(objs) 2>/dev/null
+	-rm $(tests_bin) $(tests_objs) $(lib) $(component) $(objs) 2>/dev/null
