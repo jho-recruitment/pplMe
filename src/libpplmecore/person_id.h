@@ -8,17 +8,19 @@
 
 
 #include <boost/uuid/uuid.hpp>
-#include "discriminated_value.h"
+#include "libpplmeutils/discriminated_value.h"
 
 
 namespace pplme {
 namespace core {
 
-namespace detail {
-struct PersonIdTag {};
-}  // namespace detail
 
-using PersonId = DiscriminatedValue<boost::uuids::uuid, detail::PersonIdTag>;
+/** Tag type that functions as the DiscriminatingType for PersonId. */
+struct PersonIdTag {};
+
+
+/** Id type that uniquely identifies a Person. */
+using PersonId = utils::DiscriminatedValue<boost::uuids::uuid, PersonIdTag>;
 
 bool IsValid(PersonId const& id);
 

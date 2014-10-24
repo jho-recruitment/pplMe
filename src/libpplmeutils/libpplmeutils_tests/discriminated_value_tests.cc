@@ -1,20 +1,20 @@
 /**
  *  @file
- *  @brief   Tests for pplme::core::DiscriminatedValue.
+ *  @brief   Tests for pplme::utils::DiscriminatedValue.
  *  @author  j.ho
  */
 
 
 #include <sstream>
 #include <gtest/gtest.h>
-#include "libpplmecore/discriminated_value.h"
+#include "libpplmeutils/discriminated_value.h"
 
 
 namespace testsystem {
 
 struct SystemIdTag {};
 
-using SystemId = pplme::core::DiscriminatedValue<uint32_t, SystemIdTag>;
+using SystemId = pplme::utils::DiscriminatedValue<uint32_t, SystemIdTag>;
 
 bool IsValid(SystemId system_id)
 {
@@ -91,7 +91,7 @@ namespace testsystemII {
 
 struct SystemIdTag {};
 
-using SystemId = pplme::core::DiscriminatedValue<int32_t, SystemIdTag>;
+using SystemId = pplme::utils::DiscriminatedValue<int32_t, SystemIdTag>;
 
 std::ostream& operator<<(std::ostream& stream, SystemId)
 {

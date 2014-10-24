@@ -8,7 +8,7 @@
 #define PPLME_LIBPPLMECORE_GEOPOSITION_H_
 
 
-#include "discriminated_value.h"
+#include "libpplmeutils/discriminated_value.h"
 
 
 namespace pplme {
@@ -25,6 +25,8 @@ namespace core {
 class GeoPosition {
   struct DecimalLatitudeTag {};
   struct DecimalLongitudeTag {};
+  template <typename T>
+  using FloatBasedLocation = utils::DiscriminatedValue<float, T>;
   
  public:
   /**
@@ -43,8 +45,17 @@ class GeoPosition {
    *  float is comfortably capable of representing kilometer distances.
    *  @{
    */
-  typedef DiscriminatedValue<float, DecimalLatitudeTag> DecimalLatitude;
-  typedef DiscriminatedValue<float, DecimalLongitudeTag> DecimalLongitude;
+  //  typedef utils::DiscriminatedValue<
+  // float,
+  //    DecimalLatitudeTag> DecimalLatitude;
+  //typedef utils::DiscriminatedValue<float,
+  //                                 DecimalLongitudeTag> DecimalLongitude;
+  typedef FloatBasedLocation<DecimalLatitudeTag> DecimalLatitude;
+  typedef FloatBasedLocation<DecimalLongitudeTag> DecimalLongitude;
+  // float,
+  //    DecimalLatitudeTag> DecimalLatitude;
+  //typedef utils::DiscriminatedValue<float,
+  //                                 DecimalLongitudeTag> DecimalLongitude;
   /** @} */
   
   GeoPosition() : latitude_{}, longitude_{} {}

@@ -3,8 +3,8 @@
  *  @brief   Strongly typesafe value wrapper.
  *  @author  j.ho
  */
-#ifndef PPLME_LIBPPLMECORE_DISCRIMINATEDVALUE_H_
-#define PPLME_LIBPPLMECORE_DISCRIMINATEDVALUE_H_
+#ifndef PPLME_LIBPPLMEUTILS_DISCRIMINATEDVALUE_H_
+#define PPLME_LIBPPLMEUTILS_DISCRIMINATEDVALUE_H_
 
 
 #include <ostream>
@@ -13,7 +13,7 @@
 
 
 namespace pplme {
-namespace core {
+namespace utils {
 
 
 /**
@@ -26,7 +26,7 @@ namespace core {
  *            perform arithmetic upon).  It does, however, work quite well for
  *            id types and other types that belong to a particular namespace.
  *
- *  @note  DiscrimatedValue derives from its associated DiscriminatingType
+ *  @note  DiscriminatedValue derives from its associated DiscriminatingType
  *         so that ADL can find any names in DiscriminatingType's enclosing
  *         namespace.
  *
@@ -36,7 +36,7 @@ namespace core {
  *
  *  struct SystemIdTag {};
  *
- *  using SystemId = pplme::core::DiscriminatedValue<uint32_t, SystemIdTag>;
+ *  using SystemId = pplme::utils::DiscriminatedValue<uint32_t, SystemIdTag>;
  *
  *  bool IsValid(SystemId system_id)
  *  {
@@ -101,8 +101,8 @@ std::ostream& operator<<(std::ostream& stream,
 }
 
 
-}  // namespace core
+}  // namespace utils
 }  // namespace pplme
 
 
-#endif  // PPLME_LIBPPLMECORE_DISCRIMINATEDVALUE_H_
+#endif  // PPLME_LIBPPLMEUTILS_DISCRIMINATEDVALUE_H_
