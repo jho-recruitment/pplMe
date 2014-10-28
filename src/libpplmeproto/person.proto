@@ -1,0 +1,17 @@
+// Definition of the pplMe Person type.
+
+
+import "date.proto";
+import "geo_position.proto";
+import "uuid.proto";
+
+
+package pplme.proto;
+
+
+message Person {
+  optional Uuid id = 1;
+  optional string name = 2;
+  optional Date date_of_birth = 3;
+  optional GeoPosition location_of_home = 4;
+}

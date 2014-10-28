@@ -1,0 +1,10 @@
+// Definition of the pplMe GeoPosition type.
+
+
+package pplme.proto;
+
+
+message GeoPosition {
+  optional float latitude = 1;
+  optional float longitude = 2;
+}

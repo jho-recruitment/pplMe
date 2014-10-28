@@ -1,0 +1,12 @@
+// Definition of the pplMe Request message.
+
+
+import "pplme_request.proto";
+
+
+package pplme.proto;
+
+
+message Request {
+  optional PplmeRequest pplme_request = 1;
+}

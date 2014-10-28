@@ -1,0 +1,14 @@
+// Definition of the pplMe PplmeRequest message.
+
+
+import "geo_position.proto";
+
+
+package pplme.proto;
+
+
+message PplmeRequest {
+  optional GeoPosition location_of_user = 1;
+  // Should be good until the Singularity at least.  &;D
+  optional int32 age_of_user = 2;
+}

@@ -1,0 +1,11 @@
+// Definition of the "pplMe" Uuid type.
+
+
+package pplme.proto;
+
+
+message Uuid {
+  // Must be exactly 16.
+  // In the same order as mandated by RFC4122 / ITU-T X.667.
+  required bytes octets = 1;
+}

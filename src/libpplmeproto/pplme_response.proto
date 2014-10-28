@@ -1,0 +1,12 @@
+// Definition of the pplMe PplmeResponse message.
+
+
+import "person.proto";
+
+
+package pplme.proto;
+
+
+message PplmeResponse {
+  repeated Person ppl = 1;
+}

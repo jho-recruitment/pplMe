@@ -1,0 +1,11 @@
+// Definition of the "pplMe" Date type.
+
+
+package pplme.proto;
+
+
+message Date {
+  // From MSB to LSB: year (16 bits), month (8 bit), day (8 bit).
+  // Network octet order, natch.
+  optional uint32 ymd = 1;
+}
