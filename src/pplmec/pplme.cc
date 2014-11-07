@@ -6,20 +6,15 @@
 
 
 #include "pplme.h"
+#include <iostream>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/numeric/conversion/cast.hpp>
+#include "libpplmecore/person.h"
 #include "libpplmenet/client.h"
 #include "libpplmenet/message.h"
-
 #include "libpplmeproto/convert_person.h"
 #include "libpplmeproto/pplme_response.pb.h"
 #include "libpplmeproto/request.pb.h"
-
-#include "libpplmecore/person.h"
-
-#include <boost/date_time/gregorian/gregorian.hpp>
-
-#include <boost/numeric/conversion/cast.hpp>
-
-
 
 
 namespace pplme {
@@ -73,6 +68,7 @@ bool Pplme(
     return false;
   }
 
+  // Finally, output our results.
   std::cout << "pplMe for user, " << users_age << " @ "
             << users_latitude << ", " << users_longitude
             << std::endl;
@@ -80,23 +76,24 @@ bool Pplme(
     std::cout << "pplMe: you have "
               << response_pb.ppl_size() << " potential friends :)"
               << std::endl;
+    for (int n = 0; n < response_pb.ppl_size(); ++n) {
+      core::Person person;
+      if (proto::Convert(response_pb.ppl(n), &person)) {
+        auto age =
+            boost::gregorian::day_clock::local_day() - person.date_of_birth();
+        // From memory....  &:S
+        int age_in_years = age.days() / 365.24;
+        std::cout << person.name() << ", " << age_in_years << " @ "
+                  << person.location_of_home().latitude().value() << ", "
+                  << person.location_of_home().longitude().value()
+                  << std::endl;
+      } else {
+        std::cout << "pplMe: warning: failed to grok person result"
+                  << std::endl;
+      }
+    }
   } else
     std::cout << "pplMe: no matching ppl found :(" << std::endl;
-
-  for (int n = 0; n < response_pb.ppl_size(); ++n) {
-    core::Person person;
-    if (proto::Convert(response_pb.ppl(n), &person)) {
-      auto age =
-          boost::gregorian::day_clock::local_day() - person.date_of_birth();
-      // From memory....  &:S
-      int age_in_years = age.days() / 365.24;
-      std::cout << person.name() << ", " << age_in_years << " @ "
-                << person.location_of_home().latitude().value() << ", "
-                << person.location_of_home().longitude().value()
-                << std::endl;
-    } else
-      std::cout << "pplMe: warning: failed to grok person result" << std::endl;
-  }
 
   return true;
 }
