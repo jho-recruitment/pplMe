@@ -9,7 +9,7 @@
 #define PPLME_LIBPPLMECORE_PERSON_H_
 
 
-#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/gregorian/gregorian_types.hpp>
 #include "geo_position.h"
 #include "person_id.h"
 
