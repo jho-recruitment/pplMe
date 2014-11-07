@@ -18,7 +18,7 @@ all:	pplMe
 	cd 3rdParty && $(MAKE)
 
 .PHONY:	pplMe
-pplMe:	3rdParty
+pplMe:
 	cd src && $(MAKE) THIRDPARTY=$(realpath 3rdParty)
 
 
@@ -37,6 +37,8 @@ doco:
 # Clean Up.
 .PHONY:	clean
 clean:
-	cd doco && $(MAKE) clean
 	cd src && $(MAKE) clean
+.PHONY:	megaclean
+megaclean:
+	cd doco && $(MAKE) clean
 	cd 3rdParty && $(MAKE) clean
