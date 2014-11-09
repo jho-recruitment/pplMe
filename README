@@ -1,0 +1,58 @@
+pplMe
+=====
+
+Hello, and welcome to pplMe, a small client/server application that is capable
+of finding people like you.
+
+
+BUILDING
+--------
+
+pplMe should build on any platform that has gcc 4.7 and GNU make installed.
+Change to the pplMe directory and execute the following:
+   make 3rdParty
+   make
+You should now able to run pplmed (in src/pplmed) and pplmec (in src/pplmec).
+Both of these applications supply usage information via the --help option.
+If you would like to run the tests, simply execute:
+   make test
+And for documentation, execute:
+   make doco 
+(Please note that you will need to have Doxygen and Graphviz in your path for
+ the documentation to be generated correctly.)
+
+
+TESTDATA
+--------
+
+pplmed is capable of generating randomized test data by means of the
+--test_database_size; however, this data is completely randomized, and
+presumably routinely condems a large proportion of its population to watery
+graves.  For a more appropriate dataset, you may want to consider generating
+some data based on information from the CIA World Factbook, amongst other
+things.  To do this simply execute (this target requires a fairly recent
+version of Python 2):
+   make ppl
+You can now fire up pplmed using the following:
+   src/pplmed/pplmed --ppldata pplMe-data.csv --alsologtostderr
+And in addition, you should be able to get some results with the query:
+   src/pplmec/pplmec --latitude 60 --longitude -95 --age 30 --alsologtostderr
+
+The Makefile-based execution of generating data has a hardcoded limit of
+one million people as generating Person records is fairly time-consuming.
+It is entirely possible to generate more records, but you will need to execute
+the Python script directly; simply do something akin to the following:
+   python generate_pplme_dataset.py 100000000 > pplMe-data.csv
+You probably want to go away now and make a cup of tea.  It's not quick.
+
+
+CODA
+----
+
+Well, that's pretty much it.  Have fun finding ppl!  &:D
+If you have any problems or questions, please feel free to contact me.
+
+Cheers,
+
+
+ - Jo; <jho.recruitment@gmail.com>.

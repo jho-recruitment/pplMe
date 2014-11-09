@@ -22,6 +22,12 @@ pplMe:
 	cd src && $(MAKE) THIRDPARTY=$(realpath 3rdParty)
 
 
+# Generate some Test Data.
+.PHONY:	ppl
+ppl:
+	python generate_pplme_dataset.py 1000000 > pplMe-data.csv
+
+
 # Test the Gubbins.
 .PHONY:	test
 test:

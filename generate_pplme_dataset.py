@@ -206,6 +206,8 @@ def generate_pplme_dataset(number_of_users):
                 print("{0},{1},{2},{3},{4}".
                       format(id, name, dob, latitude, longitude))
 
+    return True
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 1 or len(sys.argv) == 2:
