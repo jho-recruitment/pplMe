@@ -177,7 +177,14 @@ class PrototypeMatchingPplProvider::Impl {
 
   void AddPerson(std::unique_ptr<Person> person) {
     // We assume / don't-care if we've already seen a Person with the same id.
-    ppl_[GetPplIndex(person->location_of_home())].push_back(std::move(person));
+    auto& cell = ppl_[GetPplIndex(person->location_of_home())];
+    auto insertion_pos = std::upper_bound(
+        begin(cell), end(cell), person,
+        [](std::unique_ptr<Person> const& lhs,
+           std::unique_ptr<Person> const& rhs) {
+          return lhs->date_of_birth() < rhs->date_of_birth();
+        });
+    cell.insert(insertion_pos, std::move(person));
   }
 
 
@@ -279,12 +286,14 @@ class PrototypeMatchingPplProvider::Impl {
   using Longitude = GeoPosition::DecimalLongitude;
   
   using PplCell = std::vector<std::unique_ptr<core::Person>>;
+  /** @note  This is sorted in date-of-birth order. */
   using PplGrid = std::vector<PplCell>;
   
   int resolution_;
   std::function<boost::gregorian::date()> date_provider_;
   int max_distance_;
   int max_age_difference_;
+  /** @note  This is sorted in date-of-birth order. */
   PplGrid ppl_;
   boost::scoped_ptr<NoddyWorkerPool> workers_;
 
@@ -461,24 +470,25 @@ class PrototypeMatchingPplProvider::Impl {
 
   void FindMatchingPpl(
       core::PplMatchingParameters const& parameters,
-      std::vector<std::unique_ptr<Person>> const& grid_pos_ppl,
+      std::vector<std::unique_ptr<Person>> const& ppl_cell,
       std::vector<Person>* ppl) const {
     auto const today = date_provider_();
+    auto const earliest = today - boost::gregorian::years(
+        parameters.age_of_user() + max_age_difference_);
+    auto const latest = today - boost::gregorian::years(
+        parameters.age_of_user() - max_age_difference_);
 
-    for (auto const& person : grid_pos_ppl) {
-      auto const earliest = today - boost::gregorian::years(
-          parameters.age_of_user() + max_age_difference_);
-      auto const latest = today - boost::gregorian::years(
-          parameters.age_of_user() - max_age_difference_);
-      // If they're in the same "grid position", then the Person is assumed to
-      // be nearby, so the only other thing to consider is their age.
-      if (   person->date_of_birth() >= earliest
-          && person->date_of_birth() <= latest)
-      {
-        if (ApproxDistance(parameters.location_of_user(),
-                           person->location_of_home()) <= max_distance_) {
-          ppl->push_back(*person);
-        }
+    auto person = std::lower_bound(
+        begin(ppl_cell), end(ppl_cell), earliest,
+        [](std::unique_ptr<Person> const& lhs, boost::gregorian::date rhs) {
+          return lhs->date_of_birth() < rhs;
+        });
+    for (;
+         person != end(ppl_cell) && (*person)->date_of_birth() <= latest;
+         ++person) {
+      if (ApproxDistance(parameters.location_of_user(),
+                         (**person).location_of_home()) <= max_distance_) {
+        ppl->push_back(**person);
       }
     }
   }
