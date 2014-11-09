@@ -12,6 +12,11 @@
 #include "server.h"
 
 
+DEFINE_string(ppldata,
+              "",
+              "path to a CSV file containing data for the pplMe database");
+
+
 int main(int argc, char* argv[]) {
   std::string usage{"pplmed, the pplMe daemon.  Sample usage:\n"};
   usage += argv[0];
@@ -23,7 +28,11 @@ int main(int argc, char* argv[]) {
 
   google::InitGoogleLogging(argv[0]);
 
-  pplme::Server server(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]));
+  pplme::Server server(
+      atoi(argv[1]),
+      atoi(argv[2]),
+      atoi(argv[3]),
+      FLAGS_ppldata);
   if (!server.Go())
   {
     std::cerr << "Failed to start pplMe server (check logs for details)"

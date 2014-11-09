@@ -11,6 +11,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <glog/logging.h>
 #include "libpplmeengine/my_1st_matching_ppl_provider.h"
+#include "libpplmeengine/ppl_slurper.h"
 #include "libpplmenet/message.h"
 #include "libpplmenet/single_shot_server.h"
 #include "libpplmeproto/convert_geo_position.h"
@@ -37,8 +38,10 @@ namespace pplme {
 
 class Server::Impl {
  public:
-  Impl(int port, int test_db_size, int max_age_difference) :
+  Impl(int port, int test_db_size, int max_age_difference,
+       std::string const& ppldata_filename) :
       test_db_size_{test_db_size},
+      ppldata_filename_{ppldata_filename},
       matching_ppl_provider_{max_age_difference, &GetTodaysDate},
       pplme_requests_server_{
           boost::numeric_cast<unsigned short>(port),
@@ -55,13 +58,31 @@ class Server::Impl {
 
   
   bool Go() {
-    PopulateTestDb();
-    return pplme_requests_server_.Start();
+    bool ok = true;
+
+    if (!ppldata_filename_.empty()) {
+      engine::PplSlurper slurper{ppldata_filename_};
+      LOG(INFO) << "Loading ppl data from `" << ppldata_filename_ << "'...";
+      if (!slurper.Populate(&matching_ppl_provider_)) {
+        LOG(ERROR) << "Failed to load ppl data from `"
+                   << ppldata_filename_ << "'";
+        ok = false;
+      }
+    }
+    else {
+      LOG(INFO) << "Generating ppl test data...";
+      PopulateTestDb();
+    }
+
+    ok = ok && pplme_requests_server_.Start();
+
+    return ok;
   }
 
   
  private:
   int test_db_size_;
+  std::string ppldata_filename_;
   engine::My1stMatchingPplProvider matching_ppl_provider_;
   net::SingleShotServer pplme_requests_server_;
 
@@ -147,8 +168,13 @@ class Server::Impl {
 };
 
 
-Server::Server(int port, int simulation_db_size, int max_age_difference) :
-    impl_{new Impl{port, simulation_db_size, max_age_difference}} {}
+Server::Server(int port, int simulation_db_size, int max_age_difference,
+               std::string const& ppldata_filename) :
+    impl_{new Impl{
+        port,
+        simulation_db_size,
+        max_age_difference,
+        ppldata_filename}} {}
 
 
 bool Server::Go() {

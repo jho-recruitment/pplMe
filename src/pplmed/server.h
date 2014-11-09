@@ -7,6 +7,7 @@
 #define PPLME_PPLMED_SERVER_H_
 
 
+#include <string>
 #include "libpplmeutils/pimpl.h"
 
 
@@ -23,11 +24,16 @@ class Server {
   /**
    *  @param  port is the TCP port to listen on for pplMe Requests.
    *  @param  test_db_size is the number of random entries that should be
-   *          smashed into the pplMe test database.
+   *          smashed into the pplMe test database.  This value is ignored if
+   *          @a ppldata is non-empty.
    *  @param  max_age_difference is the maximum number of years difference in
    *          age for a person to be considered a match.
+   *  @param  ppldata_filename is the name of a CSV file that is used to
+   *          populate the pplMe database.  If empty, then randomized test data
+   *          is used instead.
    */
-  Server(int port, int test_db_size, int max_age_difference);
+  Server(int port, int test_db_size, int max_age_difference,
+         std::string const& ppldata_filename);
   ~Server();
 
   /** Go, pplMe, go! */
