@@ -9,12 +9,14 @@ BUILDING
 --------
 
 pplMe should build on any platform that has gcc 4.7 and GNU make installed.
-Change to the pplMe directory and execute the following:
+Change to the pplMe directory and execute the following two commands:
    make 3rdParty
    make
-You should now able to run pplmed (in src/pplmed) and pplmec (in src/pplmec).
-Both of these applications supply usage information via the --help option.
-If you would like to run the tests, simply execute:
+You should now be able to run pplmed, the pplMe server/daemon (located in
+src/pplmed) and pplmec, the pplMe command-line client (located in src/pplmec).
+Each of these applications can supply usage information via the --help option.
+
+If you would like to run the pplMe test suite, simply execute:
    make test
 And for documentation, execute:
    make doco 
@@ -26,16 +28,16 @@ TESTDATA
 --------
 
 pplmed is capable of generating randomized test data by means of the
---test_database_size; however, this data is completely randomized, and
-presumably routinely condems a large proportion of its population to watery
-graves.  For a more appropriate dataset, you may want to consider generating
-some data based on information from the CIA World Factbook, amongst other
-things.  To do this simply execute (this target requires a fairly recent
-version of Python 2):
+--test_database_size option; however, this data is reasonably random, and thus
+routinely condemns a large proportion of its population to watery graves. 
+For a more appropriate dataset, you may want to consider generating some data
+based on information from the CIA World Factbook, amongst other things.
+To do this simply execute:
    make ppl
-You can now fire up pplmed using the following:
+(Please note that this target requires a fairly recent version of Python 2.)
+You should now be able to fire up pplmed using the following:
    src/pplmed/pplmed --ppldata pplMe-data.csv --alsologtostderr
-And in addition, you should be able to get some results with the query:
+And in tandem, you should be able to get some v.exciting results with the query:
    src/pplmec/pplmec --latitude 60 --longitude -95 --age 30 --alsologtostderr
 
 The Makefile-based execution of generating data has a hardcoded limit of
