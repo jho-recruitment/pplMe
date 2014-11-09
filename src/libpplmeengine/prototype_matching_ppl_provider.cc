@@ -320,26 +320,39 @@ class PrototypeMatchingPplProvider::Impl {
 
 
   CellLocator TickNorth(CellLocator locator) const {
+    // Don't need to handle wrap-around here.  IsTooFarNorth polices for us.
     return CellLocator{locator.latitude_index + 1, locator.longitude_index};
   }
 
   
   CellLocator TickSouth(CellLocator locator) const {
+    // Don't need to handle wrap-around here.  IsTooFarSouth polices for us.
     return CellLocator{locator.latitude_index - 1, locator.longitude_index};
   }
 
   
   CellLocator TickEast(CellLocator locator) const {
-    return CellLocator{locator.latitude_index, locator.longitude_index + 1};
+    // Handle wrap-around.
+    return CellLocator{
+      locator.latitude_index,
+      locator.longitude_index >= static_cast<unsigned>(360 * resolution_) ?
+          0 : locator.longitude_index + 1};
   }
 
   
   CellLocator TickWest(CellLocator locator) const {
-    return CellLocator{locator.latitude_index, locator.longitude_index - 1};
+    // Handle wrap-around.
+    return CellLocator{
+      locator.latitude_index,
+      locator.longitude_index == 0 ?
+          360 * resolution_ - 1 : locator.longitude_index - 1};
   }
 
 
   bool IsTooFarNorth(GeoPosition origin, CellLocator cell) const {
+    // Don't go past Pole.
+    if (cell.latitude_index >= static_cast<unsigned>(180 * resolution_))
+      return true;
     auto cell_southmost_latitude =
         (Latitude::ValueType(cell.latitude_index) / resolution_) - 90;
     return ApproxDistance(
@@ -349,6 +362,9 @@ class PrototypeMatchingPplProvider::Impl {
 
   
   bool IsTooFarSouth(GeoPosition origin, CellLocator cell) const {
+    // Don't go past Pole.
+    if (cell.latitude_index == 0)
+      return true;
     auto cell_northmost_latitude =
         ((Latitude::ValueType(cell.latitude_index) + 1) / resolution_) - 90;
     return ApproxDistance(
@@ -357,7 +373,21 @@ class PrototypeMatchingPplProvider::Impl {
   }
 
 
+  bool IsTooFarFromOrigin(GeoPosition origin, CellLocator cell) const {
+    // We travel at most 1/4 of the circumference (at whatever latitude).
+    auto origin_cell = ToCellLocator(origin);
+    return origin_cell.longitude_index - cell.longitude_index
+        >= static_cast<unsigned>(90 * resolution_)
+        && cell.longitude_index - origin_cell.longitude_index
+        >= static_cast<unsigned>(90 * resolution_);
+  }
+  
+
   bool IsTooFarEast(GeoPosition origin, CellLocator cell) const {
+    // At the Poles, we can basically end up spinning around the globe
+    // because the distances become so small.  Make sure we have an out.
+    if (IsTooFarFromOrigin(origin, cell))
+      return true;
     auto cell_westmost_longitude =
         (Longitude::ValueType(cell.longitude_index) / resolution_) - 180;
     return ApproxDistance(
@@ -368,6 +398,10 @@ class PrototypeMatchingPplProvider::Impl {
 
 
   bool IsTooFarWest(GeoPosition origin, CellLocator cell) const {
+    // At the Poles, we can basically end up spinning around the globe
+    // because the distances become so small.  Make sure we have an out.
+    if (IsTooFarFromOrigin(origin, cell))
+      return true;
     auto cell_eastmost_longitude =
         ((Longitude::ValueType(cell.longitude_index) + 1) / resolution_) - 180;
     return ApproxDistance(

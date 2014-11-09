@@ -48,6 +48,7 @@ TEST_P(PrototypeMatchingPplProviderTest_FindMatchingPpl, Tests) {
       GetParam().max_distance,
       GetParam().max_age_difference,
       []() { return boost::gregorian::date{2014, 11, 8}; });
+  ppl_provider.Start();
   std::unique_ptr<Person> person{new Person{
       GetTokenPersonId(),
       "Clarence Boddicker",
@@ -84,7 +85,10 @@ PPLME_TESTLETTES_BEGIN(FindMatchingPplTestlette, find_matching_ppl_testlettes)
   PPLME_TESTLETTE(1, 4, 0, 24.86, 67.01, { 1984, 11, 8 },
                   24.874552, 66.969059, 30, false),
   PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 9 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 7 }, 0, 0, 30, false)
+  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 7 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 8 }, 90, -65, 30, false),
+  PPLME_TESTLETTE(1, 100, 0, 0, 179.99, { 1984, 11, 8 }, 0, -179.99, 30, false),
+  PPLME_TESTLETTE(1, 100, 0, 0, -179.99, { 1984, 11, 8 },0,  179.99, 30, false)
 PPLME_TESTLETTES_END(find_matching_ppl_testlettes,
                      PrototypeMatchingPplProviderTest_FindMatchingPpl)
 
