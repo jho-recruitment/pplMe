@@ -42,17 +42,26 @@ class SingleShotServer::Impl {
   
   
   bool Start() {
-    bool success = true;
+    error_code error;
+    acceptor_.open(endpoint_.protocol(), error);
+    if (!error)
+      acceptor_.bind(endpoint_, error);
+    if (!error)
+      acceptor_.listen(boost::asio::socket_base::max_connections, error);
+    if (error) {
+      LOG(ERROR) << "Failed to initialize a local listening socket: "
+                 << error << ": " << error.message();
+    }
+
+    bool success = !error;
+    if (success) {
+      LOG(INFO) << "SingleShotServer is listening for connections on "
+                << endpoint_;
+    }
  
-    acceptor_.open(endpoint_.protocol());
-    acceptor_.bind(endpoint_);
-    acceptor_.listen();
-
-    LOG(INFO) << "SingleShotServer is listening for connections on "
-              << endpoint_;
-
     try {
-      io_thread_ = std::thread([this]() { GoIoServiceGo(); });
+      if (success)
+        io_thread_ = std::thread([this]() { GoIoServiceGo(); });
     } catch (std::system_error const& error) {
       success = false;
     }
@@ -69,6 +78,11 @@ class SingleShotServer::Impl {
   }
 
 
+  unsigned short GetLocalPort() const {
+    return acceptor_.local_endpoint().port();
+  }
+  
+  
   void Shutdown() {
     // Take ownership of the connection threads so that we can wait for them
     // all to finish and prevent any more starting.
@@ -156,7 +170,7 @@ class SingleShotServer::Impl {
                      << " due to SingleShotServer shutting down";
       }
     } else
-      LOG(ERROR) << "Accept error: " << error.message();
+      LOG(ERROR) << "Accept error: " << error << ": " << error.message();
   }
 
   
@@ -211,6 +225,11 @@ SingleShotServer::~SingleShotServer() = default;
 
 bool SingleShotServer::Start() {
   return impl_->Start();
+}
+
+
+unsigned short SingleShotServer::GetLocalPort() const {
+  return impl_->GetLocalPort();
 }
 
 

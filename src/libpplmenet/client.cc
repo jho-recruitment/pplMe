@@ -63,6 +63,8 @@ class Client::Impl {
         }
         success = !error;
       }
+      else
+        success = false;
     }
 
     return success;

@@ -81,6 +81,10 @@ class SingleShotServer {
       to process. */
   bool Start();
 
+  /** Discover what port we bound to.  Useful when 0 was passed to the ctor.
+      Can only be called inbetween Start() and Shutdown(). */
+  unsigned short GetLocalPort() const;
+  
   /** Shut the server down. */
   void Shutdown();
   
