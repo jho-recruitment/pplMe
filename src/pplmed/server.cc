@@ -10,8 +10,8 @@
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <glog/logging.h>
-#include "libpplmeengine/my_1st_matching_ppl_provider.h"
 #include "libpplmeengine/ppl_slurper.h"
+#include "libpplmeengine/prototype_matching_ppl_provider.h"
 #include "libpplmenet/message.h"
 #include "libpplmenet/single_shot_server.h"
 #include "libpplmeproto/convert_geo_position.h"
@@ -38,11 +38,20 @@ namespace pplme {
 
 class Server::Impl {
  public:
-  Impl(int port, int test_db_size, int max_age_difference,
-       std::string const& ppldata_filename) :
+  Impl(
+      int port,
+      int test_db_size,
+      int grid_resolution,
+      int max_distance,
+      int max_age_difference,
+      std::string const& ppldata_filename) :
       test_db_size_{test_db_size},
       ppldata_filename_{ppldata_filename},
-      matching_ppl_provider_{max_age_difference, &GetTodaysDate},
+      matching_ppl_provider_{
+          grid_resolution,
+          max_distance,
+          max_age_difference,
+          &GetTodaysDate},
       pplme_requests_server_{
           boost::numeric_cast<unsigned short>(port),
           std::bind(&Impl::HandlePplmeRequest,
@@ -74,6 +83,9 @@ class Server::Impl {
       PopulateTestDb();
     }
 
+    if (ok)
+      matching_ppl_provider_.Start();
+    
     ok = ok && pplme_requests_server_.Start();
 
     return ok;
@@ -83,7 +95,7 @@ class Server::Impl {
  private:
   int test_db_size_;
   std::string ppldata_filename_;
-  engine::My1stMatchingPplProvider matching_ppl_provider_;
+  engine::PrototypeMatchingPplProvider matching_ppl_provider_;
   net::SingleShotServer pplme_requests_server_;
 
   
@@ -168,11 +180,18 @@ class Server::Impl {
 };
 
 
-Server::Server(int port, int simulation_db_size, int max_age_difference,
-               std::string const& ppldata_filename) :
+Server::Server(
+    int port,
+    int test_db_size,
+    int grid_resolution,
+    int max_distance,
+    int max_age_difference,
+    std::string const& ppldata_filename) :
     impl_{new Impl{
         port,
-        simulation_db_size,
+        test_db_size,
+        grid_resolution,
+        max_distance,
         max_age_difference,
         ppldata_filename}} {}
 

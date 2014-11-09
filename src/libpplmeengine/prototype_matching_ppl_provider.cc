@@ -7,7 +7,12 @@
 
 #include "prototype_matching_ppl_provider.h"
 #include <math.h>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 #include <boost/math/constants/constants.hpp>
+#include <boost/scoped_ptr.hpp>
 #include <glog/logging.h>
 
 
@@ -79,6 +84,66 @@ float ApproxDistance(GeoPosition position1, GeoPosition position2) {
 }
 
 
+class NoddyWorkerPool {
+ public:
+  NoddyWorkerPool() {
+    for (unsigned n = 0; n < std::thread::hardware_concurrency(); ++n)
+      workers_.emplace_back([this]() { StartWorking(); });
+  }
+
+
+  ~NoddyWorkerPool() {
+    /* lock block */ {
+      std::unique_lock<std::mutex> lock(work_mutex_);
+      die_ = true;
+      work_or_die_.notify_all();
+    }
+    for (auto& worker : workers_)
+      worker.join();
+  }
+
+
+  void QueueWorklette(std::function<void()> worklette) {
+    std::unique_lock<std::mutex> lock(work_mutex_);
+    work_.push_back(worklette);
+    work_or_die_.notify_all();
+  }
+  
+ private:
+  std::vector<std::thread> workers_;
+  std::mutex work_mutex_;
+  std::condition_variable work_or_die_;
+  std::deque<std::function<void()>> work_;
+  bool die_{false};
+
+
+  void StartWorking() {
+    for (;;) {
+      std::function<void()> worklette;
+
+      /* lock block */ {
+        std::unique_lock<std::mutex> lock(work_mutex_);
+        if (die_)
+          break;
+        work_or_die_.wait(lock);
+
+        if (die_)
+          break;
+ 
+        if (!work_.empty()) {
+          worklette = work_.front();
+          work_.pop_front();
+        }
+      }
+
+      // Don't want to be holding locks while doing work!
+      if (worklette)
+        worklette();
+    }
+  }
+};
+
+
 }  // namespace
 
 
@@ -99,6 +164,16 @@ class PrototypeMatchingPplProvider::Impl {
       ppl_{CalculateSizeForPplGrid(resolution)} {}
 
 
+  ~Impl() {
+    workers_.reset();
+  }
+
+  
+  void Start() {
+    workers_.reset(new NoddyWorkerPool{});
+  }
+  
+
   void AddPerson(std::unique_ptr<Person> person) {
     // We assume / don't-care if we've already seen a Person with the same id.
     ppl_[GetPplIndex(person->location_of_home())].push_back(std::move(person));
@@ -115,10 +190,78 @@ class PrototypeMatchingPplProvider::Impl {
     auto& grid_pos_ppl = ppl_[GetPplIndex(parameters.location_of_user())];
     FindMatchingPpl(parameters, grid_pos_ppl, &ppl);
 
+    // This is how we keep track of async finds and rendezvous with them.
+    struct FindPplOrchestration {
+      std::mutex mutex;
+      std::condition_variable condvar;
+      std::vector<Person>* ppl;
+      int pending_ops;
+    };
+    auto orchestration = std::make_shared<FindPplOrchestration>();
+    orchestration->ppl = &ppl;
+    
     // Then inspect the "nearby" cells.
     auto nearby_cells = GetNearbyCells(parameters.location_of_user());
-    for (auto cell : nearby_cells)
-      FindMatchingPpl(parameters, ppl_[GetPplIndex(cell)], &ppl);
+    for (auto cell : nearby_cells) {
+      // resultslette is just for this one op
+      auto resultslette = std::make_shared<std::vector<Person>>();
+      auto findppl_worklette =
+          [this, parameters, cell, orchestration, resultslette]() {
+        /* lock block */ {
+          std::unique_lock<std::mutex> lock(orchestration->mutex);
+          if (!orchestration->ppl) {
+            --orchestration->pending_ops;
+            orchestration->condvar.notify_one();
+            return;
+          }
+        }
+
+        // Yup, this is done asynchronously.  And it got me realizing that I
+        // think I was a bit of a dumbass for putting the person's name in the
+        // Person class; or, at least, not having a different class for storing
+        // in the grid.  That way, you could have names (and whatever other
+        // metadata) fetched asynchronously from some other datastore (RDBMS
+        // or whatever) while the core engine busied itself smashing through
+        // the problem of actually finding matches (the id is key, right?).
+        // Oh and I also just realized that I could probably save quite a bit
+        // of memory given the fact that name /is/ a member of Person by having
+        // some sort of compression based on a rop of name atoms or somesuch.
+        // Oh well, it's too late now, eh?  &:/
+        FindMatchingPpl(
+            parameters, ppl_[GetPplIndex(cell)], resultslette.get());
+
+        /* lock block */ {
+          std::unique_lock<std::mutex> lock(orchestration->mutex);
+          if (orchestration->ppl) {
+            for (auto person : *resultslette)
+              orchestration->ppl->push_back(person);
+          }
+          --orchestration->pending_ops;
+          orchestration->condvar.notify_one();
+        }
+      };
+
+      /* lock bock */ {
+        std::unique_lock<std::mutex> lock(orchestration->mutex);
+        ++orchestration->pending_ops;
+      }
+
+      workers_->QueueWorklette(findppl_worklette);
+    }
+
+    /* lock block */ {
+      std::unique_lock<std::mutex> lock(orchestration->mutex);
+      orchestration->condvar.wait_for(
+          lock,
+          // Spec says to return within 1 second.  This is where that magic
+          // happens.
+          std::chrono::seconds(1),
+          [orchestration]() { return orchestration->pending_ops == 0; });
+
+      // Make sure that any unfinished work doesn't smash us up.
+      orchestration->ppl = nullptr;
+    }
+    
     
     return ppl;
   }
@@ -136,6 +279,7 @@ class PrototypeMatchingPplProvider::Impl {
   int max_distance_;
   int max_age_difference_;
   PplGrid ppl_;
+  boost::scoped_ptr<NoddyWorkerPool> workers_;
 
 
   PplGrid::size_type GetLatitudeIndex(Latitude latitude) const {
@@ -317,6 +461,11 @@ PrototypeMatchingPplProvider::PrototypeMatchingPplProvider(
 
 PrototypeMatchingPplProvider::~PrototypeMatchingPplProvider() noexcept(true) =
   default;
+
+
+void PrototypeMatchingPplProvider::Start() {
+  impl_->Start();
+}
 
 
 void PrototypeMatchingPplProvider::AddPerson(

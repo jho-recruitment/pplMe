@@ -70,19 +70,21 @@ TEST_P(PrototypeMatchingPplProviderTest_FindMatchingPpl, Tests) {
 }
 
 PPLME_TESTLETTES_BEGIN(FindMatchingPplTestlette, find_matching_ppl_testlettes)
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 30, true ),
-  PPLME_TESTLETTE(1, 10, 1, -1, 0, { 1984, 11, 8 }, 0, 0, 30, false ),
-  PPLME_TESTLETTE(1, 10, 1, 1, 0, { 1984, 11, 8 }, 0, 0, 30, false ),
-  PPLME_TESTLETTE(1, 10, 1, 0, -1, { 1984, 11, 8 }, 0, 0, 30, false ),
-  PPLME_TESTLETTE(1, 10, 1, 0, 1, { 1984, 11, 8 }, 0, 0, 30, false ),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 29, true ),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 28, false ),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 31, true ),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 32, false ),
+  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 10, 1, -1, 0, { 1984, 11, 8 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 1, 1, 0, { 1984, 11, 8 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 1, 0, -1, { 1984, 11, 8 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 1, 0, 1, { 1984, 11, 8 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 29, true),
+  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 28, false),
+  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 31, true),
+  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 32, false),
   PPLME_TESTLETTE(1, 10, 0, 24.86, 67.01, { 1984, 11, 8 },
                   24.874552, 66.969059, 30, true),
   PPLME_TESTLETTE(1, 4, 0, 24.86, 67.01, { 1984, 11, 8 },
-                  24.874552, 66.969059, 30, false)
+                  24.874552, 66.969059, 30, false),
+  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 9 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 7 }, 0, 0, 30, false)
 PPLME_TESTLETTES_END(find_matching_ppl_testlettes,
                      PrototypeMatchingPplProviderTest_FindMatchingPpl)
 

@@ -34,6 +34,26 @@ extern bool const test_database_size_validation_registrar =
           return value >= 0;
         });
 
+DEFINE_int32(grid_resolution,
+             10,
+             "number of cells per decimal degree in the grid");
+extern bool const grid_resolution_validation_registrar =
+    RegisterFlagValidator(
+        &FLAGS_grid_resolution,
+        [](char const*, int32_t value) {
+          return value > 0 && value <= 100;
+        });
+
+DEFINE_int32(max_distance,
+             10,
+             "maximum distance of matches in km");
+extern bool const max_distance_validation_registrar =
+    RegisterFlagValidator(
+        &FLAGS_max_distance,
+        [](char const*, int32_t value) {
+          return value > 0;
+        });
+
 DEFINE_int32(max_age_difference,
              10,
              "maximum age difference of matches");
@@ -61,6 +81,8 @@ int main(int argc, char* argv[]) {
   pplme::Server server(
       FLAGS_port,
       FLAGS_test_database_size,
+      FLAGS_grid_resolution,
+      FLAGS_max_distance,
       FLAGS_max_age_difference,
       FLAGS_ppldata);
   if (!server.Go())
