@@ -31,7 +31,8 @@ bool Pplme(
   net::Client client{pplme_server_address, pplme_server_port};
   if (!client.Connect()) {
     std::cerr << "Failed to connect to pplMe server "
-              << pplme_server_address << ":" << pplme_server_port;
+              << pplme_server_address << ":" << pplme_server_port
+              << std::endl;
     return false;
   }
 
@@ -55,7 +56,8 @@ bool Pplme(
   if (!response) {
     std::cerr << "pplMe request to "
               << pplme_server_address << ":" << pplme_server_port
-              << " failed (check logs for details)";
+              << " failed (check logs for details)"
+              << std::endl;
     return false;
   }
 
@@ -64,7 +66,8 @@ bool Pplme(
   if (!response_pb.ParseFromArray(response->GetBodyOctets(),
                                   response->GetHeader().GetBodyLength())) {
     std::cerr << "Invalid pplMe response received from "
-              << pplme_server_address << ":" << pplme_server_port;
+              << pplme_server_address << ":" << pplme_server_port
+              << std::endl;
     return false;
   }
 
