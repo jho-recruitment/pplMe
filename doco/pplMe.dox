@@ -1,0 +1,95 @@
+/**  @mainpage pplMe Project Source Code
+
+
+Introduction
+============
+
+This is the documentation for the pplMe project.  The pplMe project is divided
+up into a number of libraries and applications.  This page explains the role of
+each of them.
+
+
+Libraries
+=========
+
+The libraries in pplMe are small and largely horizontal in nature.  In
+particular, there is a rough dependency graph which has core at the root,
+and engine and proto dependent upon that.  net and utils are almost entirely
+application agnostic, and only really exist due to the nature of the project.
+
+
+libpplmecore
+------------
+The libpplmecore library is basically the collection of types that make up the
+pplMe domain.  In particular, it defines the pplme::core::GeoPosition and
+pplme::core::Person types, which are used extensively thoughout the system,
+plus it also defines the pplme::core::MatchingPplProvider interface, which is
+basically the code-based definition of the service that pplMe provides.
+
+
+libpplmeengine
+--------------
+The libpplmeengine library builds upon core by providing actual functionality.
+It was conceived largely as a server-side library, but it is likely that a more
+distributed implementation would blur these lines too much.
+
+Right now it serves as the home for pplme::engine::PrototypePplMatchingProvider,
+which is arguably the most important class in pplMe since it basically defines
+the in-memory implementation (and hints at possible distributed
+implementations).
+
+
+libpplmenet
+-----------
+The libpplmenet library is basically a generic client/server messaging library
+that provides a thin layer over boost::asio to provide relilable datagram-esque
+services.
+
+
+libpplmeproto
+-------------
+The libpplmeproto library is nothing more than the home of the Protocol Buffers
+message definitions that are used between pplmec and pplmed, plus various
+functions for converting between wire and domain types.
+
+
+libpplmeutils
+-------------
+The libpplmeutils library is a generic utility objects/functions library that
+serves as a home for things that didn't really fit elsewhere (or that would
+otherwise require undesirable dependencies).
+
+
+Applications
+============
+
+Currently there are two main applications in pplMe: pplmed, the server, and
+pplmec, the client.
+
+
+pplmed
+------
+pplmed is the pplMe server component, and it is responsible for the in-memory
+repository of people data, and for answering client pplMe queries.  It is
+called `pplmed' largely because the author clearly did not have a a great idea
+what a daemon actually was.
+
+
+pplmec 
+------
+pplmec is the pplMe command-line client.  It basically acts as the intermediary
+between users and the pplMe wire protocol.  It is dull, but necessary.
+
+
+Miscellaneous
+=============
+
+The remainder of the contents of pplMe is basically the tests, this
+documentation, and the plumbing for 3rdParty.  In general, the build structure
+is such that all interesting things are available from the top-level Makefile
+(i.e., the one in the pplMe directory).  Therefor that's probably a good place
+to start looking for clues as to what to do and what's around.
+
+
+
+                                                                             **/
