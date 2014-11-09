@@ -58,7 +58,7 @@ class Message {
    *  malicious peers spoofing large messages and DoSing us as a result of us
    *  blindly trying to allocate that amount of memory.
    */
-  static uint32_t const kMaxBodyLength = 65536;
+  static uint32_t const kMaxBodyLength = 1048576;
 
   Message(Header header, std::unique_ptr<uint8_t[]> body) :
       header_{header},
