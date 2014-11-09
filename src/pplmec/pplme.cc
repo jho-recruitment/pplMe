@@ -6,9 +6,11 @@
 
 
 #include "pplme.h"
+#include <chrono>
 #include <iostream>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/numeric/conversion/cast.hpp>
+#include <glog/logging.h>
 #include "libpplmecore/person.h"
 #include "libpplmenet/client.h"
 #include "libpplmenet/message.h"
@@ -51,6 +53,8 @@ bool Pplme(
     std::move(request_body),
     boost::numeric_cast<uint32_t>(request_pb.ByteSize())};
 
+  auto then = std::chrono::high_resolution_clock::now();
+  
   // Send request and grab response.
   auto response = client.SendRequest(request);
   if (!response) {
@@ -61,6 +65,10 @@ bool Pplme(
     return false;
   }
 
+  auto now = std::chrono::high_resolution_clock::now();
+  auto took = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+  VLOG(1) << "Request/Response took " << took.count();
+  
   // Decode generic pplMe response message into PplmeResponse protobuf message.
   proto::PplmeResponse response_pb;
   if (!response_pb.ParseFromArray(response->GetBodyOctets(),

@@ -6,6 +6,7 @@
 
 
 #include "server.h"
+#include <chrono>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/uuid/random_generator.hpp>
@@ -154,6 +155,8 @@ class Server::Impl {
       return std::unique_ptr<net::Message>{};
     }
 
+    auto then = std::chrono::high_resolution_clock::now();
+    
     // Okay, the PplmeRequest looks sound, let's see who we can find...
     LOG(INFO) << "Processing request from " << addressnport
               << " from user, " << request_pb.pplme_request().age_of_user()
@@ -163,6 +166,11 @@ class Server::Impl {
         core::PplMatchingParameters{
             location_of_user, request_pb.pplme_request().age_of_user()});
 
+    auto now = std::chrono::high_resolution_clock::now();
+    auto took = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now - then);
+    VLOG(1) << "FindMatchinPpl() took " << took.count();
+    
     // ...and smash each one into a PplmeResponse.
     proto::PplmeResponse response_pb;
     for (auto const& person : matching_ppl) {

@@ -125,7 +125,8 @@ class NoddyWorkerPool {
         std::unique_lock<std::mutex> lock(work_mutex_);
         if (die_)
           break;
-        work_or_die_.wait(lock);
+        else if (work_.empty())
+          work_or_die_.wait(lock);
 
         if (die_)
           break;
@@ -197,12 +198,17 @@ class PrototypeMatchingPplProvider::Impl {
       std::vector<Person>* ppl;
       int pending_ops;
     };
-    auto orchestration = std::make_shared<FindPplOrchestration>();
-    orchestration->ppl = &ppl;
-    
+    std::shared_ptr<FindPplOrchestration> orchestration;
+
     // Then inspect the "nearby" cells.
     auto nearby_cells = GetNearbyCells(parameters.location_of_user());
     for (auto cell : nearby_cells) {
+      if (!orchestration) {
+          orchestration = std::make_shared<FindPplOrchestration>();
+          orchestration->ppl = &ppl;
+          orchestration->pending_ops = 0;
+      }
+      
       // resultslette is just for this one op
       auto resultslette = std::make_shared<std::vector<Person>>();
       auto findppl_worklette =
@@ -211,7 +217,7 @@ class PrototypeMatchingPplProvider::Impl {
           std::unique_lock<std::mutex> lock(orchestration->mutex);
           if (!orchestration->ppl) {
             --orchestration->pending_ops;
-            orchestration->condvar.notify_one();
+            orchestration->condvar.notify_all();
             return;
           }
         }
@@ -237,7 +243,7 @@ class PrototypeMatchingPplProvider::Impl {
               orchestration->ppl->push_back(person);
           }
           --orchestration->pending_ops;
-          orchestration->condvar.notify_one();
+          orchestration->condvar.notify_all();
         }
       };
 
@@ -249,19 +255,20 @@ class PrototypeMatchingPplProvider::Impl {
       workers_->QueueWorklette(findppl_worklette);
     }
 
-    /* lock block */ {
+    // Only do this if we actually queued any work.
+    if (orchestration) {
       std::unique_lock<std::mutex> lock(orchestration->mutex);
-      orchestration->condvar.wait_for(
-          lock,
-          // Spec says to return within 1 second.  This is where that magic
-          // happens.
-          std::chrono::seconds(1),
-          [orchestration]() { return orchestration->pending_ops == 0; });
-
+      if (orchestration->pending_ops != 0) {
+        orchestration->condvar.wait_for(
+            lock,
+            // Spec says to return within 1 second.  This is where that magic
+            // happens.
+            std::chrono::seconds(1),
+            [orchestration]() { return orchestration->pending_ops == 0; });
+      }
       // Make sure that any unfinished work doesn't smash us up.
       orchestration->ppl = nullptr;
     }
-    
     
     return ppl;
   }
