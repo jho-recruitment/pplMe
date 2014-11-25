@@ -1,11 +1,11 @@
 /**
  *  @file
- *  @brief   Implementation for pplme::engine::PrototypeMatchingPplProvider.
+ *  @brief   Implementation for pplme::engine::PplmeMatchingPplProvider.
  *  @author  j.ho
  */
 
 
-#include "prototype_matching_ppl_provider.h"
+#include "pplme_matching_ppl_provider.h"
 #include <math.h>
 #include <condition_variable>
 #include <deque>
@@ -152,7 +152,7 @@ namespace pplme {
 namespace engine {
 
 
-class PrototypeMatchingPplProvider::Impl {
+class PplmeMatchingPplProvider::Impl {
  public:
   Impl(int resolution,
        int max_distance,
@@ -495,7 +495,7 @@ class PrototypeMatchingPplProvider::Impl {
 };
 
 
-PrototypeMatchingPplProvider::PrototypeMatchingPplProvider(
+PplmeMatchingPplProvider::PplmeMatchingPplProvider(
     int resolution,
     int max_distance,
     int max_age_difference,
@@ -510,23 +510,22 @@ PrototypeMatchingPplProvider::PrototypeMatchingPplProvider(
 }
 
 
-PrototypeMatchingPplProvider::~PrototypeMatchingPplProvider() noexcept(true) =
-  default;
+PplmeMatchingPplProvider::~PplmeMatchingPplProvider() noexcept(true) = default;
 
 
-void PrototypeMatchingPplProvider::Start() {
+void PplmeMatchingPplProvider::Start() {
   impl_->Start();
 }
 
 
-void PrototypeMatchingPplProvider::AddPerson(
+void PplmeMatchingPplProvider::AddPerson(
     std::unique_ptr<core::Person> person) {
   impl_->AddPerson(std::move(person));
 }
 
   
 std::vector<core::Person>
-PrototypeMatchingPplProvider::FindMatchingPpl(
+PplmeMatchingPplProvider::FindMatchingPpl(
     core::PplMatchingParameters const& parameters) const {
   return impl_->FindMatchingPpl(parameters);
 }
