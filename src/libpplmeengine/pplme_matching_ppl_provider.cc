@@ -155,23 +155,18 @@ namespace engine {
 class PplmeMatchingPplProvider::Impl {
  public:
   Impl(int resolution,
-       int max_distance,
        int max_age_difference,
        std::function<boost::gregorian::date()> date_provider) :
       resolution_{resolution},
       date_provider_{date_provider},
-      max_distance_{max_distance},
       max_age_difference_{max_age_difference},
-      ppl_{CalculateSizeForPplGrid(resolution)} {}
-
-
-  ~Impl() {
-    workers_.reset();
+      ppl_{CalculateSizeForPplGrid(resolution)} {
+    workers_.reset(new NoddyWorkerPool{});
   }
 
   
-  void Start() {
-    workers_.reset(new NoddyWorkerPool{});
+  ~Impl() {
+    workers_.reset();
   }
   
 
@@ -270,7 +265,7 @@ class PplmeMatchingPplProvider::Impl {
             lock,
             // Spec says to return within 1 second.  This is where that magic
             // happens.
-            std::chrono::seconds(1),
+            std::chrono::seconds(120),
             [orchestration]() { return orchestration->pending_ops == 0; });
       }
       // Make sure that any unfinished work doesn't smash us up.
@@ -291,7 +286,6 @@ class PplmeMatchingPplProvider::Impl {
   
   int resolution_;
   std::function<boost::gregorian::date()> date_provider_;
-  int max_distance_;
   int max_age_difference_;
   /** @note  This is sorted in date-of-birth order. */
   PplGrid ppl_;
@@ -326,7 +320,7 @@ class PplmeMatchingPplProvider::Impl {
 
   
   PplGrid::size_type GetPplIndex(CellLocator cell) const {
-    return cell.latitude_index * 360 + cell.longitude_index;
+    return cell.latitude_index * 361 + cell.longitude_index;
   }
 
   
@@ -361,69 +355,39 @@ class PplmeMatchingPplProvider::Impl {
     return CellLocator{
       locator.latitude_index,
       locator.longitude_index == 0 ?
-          360 * resolution_ - 1 : locator.longitude_index - 1};
+          360 * resolution_ : locator.longitude_index - 1};
   }
 
 
-  bool IsTooFarNorth(GeoPosition origin, CellLocator cell) const {
+  bool IsTooFarNorth(GeoPosition, CellLocator cell) const {
     // Don't go past Pole.
-    if (cell.latitude_index >= static_cast<unsigned>(180 * resolution_))
-      return true;
-    auto cell_southmost_latitude =
-        (Latitude::ValueType(cell.latitude_index) / resolution_) - 90;
-    return ApproxDistance(
-        origin.latitude(),
-        Latitude{cell_southmost_latitude}) > max_distance_;
+    return cell.latitude_index > static_cast<unsigned>(180 * resolution_) + 1;
   }
 
   
-  bool IsTooFarSouth(GeoPosition origin, CellLocator cell) const {
+  bool IsTooFarSouth(GeoPosition, CellLocator cell) const {
     // Don't go past Pole.
-    if (cell.latitude_index == 0)
-      return true;
-    auto cell_northmost_latitude =
-        ((Latitude::ValueType(cell.latitude_index) + 1) / resolution_) - 90;
-    return ApproxDistance(
-        origin.latitude(),
-        Latitude{cell_northmost_latitude}) > max_distance_;
-  }
-
-
-  bool IsTooFarFromOrigin(GeoPosition origin, CellLocator cell) const {
-    // We travel at most 1/4 of the circumference (at whatever latitude).
-    auto origin_cell = ToCellLocator(origin);
-    return origin_cell.longitude_index - cell.longitude_index
-        >= static_cast<unsigned>(90 * resolution_)
-        && cell.longitude_index - origin_cell.longitude_index
-        >= static_cast<unsigned>(90 * resolution_);
+    return cell.latitude_index == static_cast<PplGrid::size_type>(-1);
   }
   
 
   bool IsTooFarEast(GeoPosition origin, CellLocator cell) const {
-    // At the Poles, we can basically end up spinning around the globe
-    // because the distances become so small.  Make sure we have an out.
-    if (IsTooFarFromOrigin(origin, cell))
-      return true;
-    auto cell_westmost_longitude =
-        (Longitude::ValueType(cell.longitude_index) / resolution_) - 180;
-    return ApproxDistance(
-        origin.latitude(),
-        origin.longitude(),
-        Longitude{cell_westmost_longitude}) > max_distance_;
+    // Only go half way around globe.
+    auto origin_cell = ToCellLocator(origin);
+    auto const kHalfWayAround = static_cast<unsigned>(180 * resolution_);
+    return cell.longitude_index > origin_cell.longitude_index ?
+        cell.longitude_index - origin_cell.longitude_index > kHalfWayAround
+      : origin_cell.longitude_index - cell.longitude_index <= kHalfWayAround;
   }
 
 
   bool IsTooFarWest(GeoPosition origin, CellLocator cell) const {
-    // At the Poles, we can basically end up spinning around the globe
-    // because the distances become so small.  Make sure we have an out.
-    if (IsTooFarFromOrigin(origin, cell))
-      return true;
-    auto cell_eastmost_longitude =
-        ((Longitude::ValueType(cell.longitude_index) + 1) / resolution_) - 180;
-    return ApproxDistance(
-        origin.latitude(),
-        origin.longitude(),
-        Longitude{cell_eastmost_longitude}) > max_distance_;
+    // Only go half way around globe.
+    auto origin_cell = ToCellLocator(origin);
+    auto const kHalfWayAround = static_cast<unsigned>(180 * resolution_);    
+    return cell.longitude_index < origin_cell.longitude_index ?
+          origin_cell.longitude_index - cell.longitude_index > kHalfWayAround
+        : cell.longitude_index - origin_cell.longitude_index <= kHalfWayAround;
   }
 
 
@@ -455,12 +419,13 @@ class PplmeMatchingPplProvider::Impl {
     for (auto cell = TickNorth(bullseye);
          !IsTooFarNorth(geopos, cell);
          cell = TickNorth(cell)) {
-        cells.push_back(cell);
+      cells.push_back(cell);
       GetNearbyCellsSameLatitude(geopos, cell, &cells);
     }
     for (auto cell = TickSouth(bullseye);
          !IsTooFarSouth(geopos, cell);
          cell = TickSouth(cell)) {
+      cells.push_back(cell);
       GetNearbyCellsSameLatitude(geopos, cell, &cells);
     }
 
@@ -485,37 +450,23 @@ class PplmeMatchingPplProvider::Impl {
         });
     for (;
          person != end(ppl_cell) && (*person)->date_of_birth() <= latest;
-         ++person) {
-      if (ApproxDistance(parameters.location_of_user(),
-                         (**person).location_of_home()) <= max_distance_) {
-        ppl->push_back(**person);
-      }
-    }
+         ++person)
+      ppl->push_back(**person);
   }
 };
 
 
 PplmeMatchingPplProvider::PplmeMatchingPplProvider(
     int resolution,
-    int max_distance,
     int max_age_difference,
     std::function<boost::gregorian::date()> date_provider) :
-    impl_{new Impl{
-        resolution, max_distance, max_age_difference, date_provider}} {
-  // Some of the approximations will start to go a little wonky as the maximum
-  // distance gets big relative to the radius of Terra.
-  CHECK(max_distance > 0 && max_distance < 1000);
+    impl_{new Impl{resolution, max_age_difference, date_provider}} {
   CHECK(max_age_difference >= 0);
   CHECK(date_provider);
 }
 
 
 PplmeMatchingPplProvider::~PplmeMatchingPplProvider() noexcept(true) = default;
-
-
-void PplmeMatchingPplProvider::Start() {
-  impl_->Start();
-}
 
 
 void PplmeMatchingPplProvider::AddPerson(

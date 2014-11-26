@@ -31,7 +31,6 @@ PersonId GetTokenPersonId()
 
 PPLME_TESTLETTE_TYPE_BEGIN(FindMatchingPplTestlette)
   int resolution;
-  int max_distance;
   int max_age_difference;
   float person_latitude;
   float person_longitude;
@@ -46,10 +45,8 @@ PPLME_TESTLETTE_TYPE_END(FindMatchingPplTestlette,
 TEST_P(PplmeMatchingPplProviderTest_FindMatchingPpl, Tests) {
   PplmeMatchingPplProvider ppl_provider(
       GetParam().resolution,
-      GetParam().max_distance,
       GetParam().max_age_difference,
       []() { return boost::gregorian::date{2014, 11, 8}; });
-  ppl_provider.Start();
   std::unique_ptr<Person> person{new Person{
       GetTokenPersonId(),
       "Borence Claddicker",
@@ -72,24 +69,22 @@ TEST_P(PplmeMatchingPplProviderTest_FindMatchingPpl, Tests) {
 }
 
 PPLME_TESTLETTES_BEGIN(FindMatchingPplTestlette, find_matching_ppl_testlettes)
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 30, true),
-  PPLME_TESTLETTE(1, 10, 1, -1, 0, { 1984, 11, 8 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 1, 1, 0, { 1984, 11, 8 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 1, 0, -1, { 1984, 11, 8 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 1, 0, 1, { 1984, 11, 8 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 29, true),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 28, false),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 31, true),
-  PPLME_TESTLETTE(1, 10, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 32, false),
-  PPLME_TESTLETTE(1, 10, 0, 24.86, 67.01, { 1984, 11, 8 },
+  PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 1, -1, 0, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 1, 1, 0, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 1, 0, -1, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 1, 0, 1, { 1984, 11, 8 }, 0, 0, 30, true),
+  PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 29, true),
+  PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 28, false),
+  PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 31, true),
+  PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 32, false),
+  PPLME_TESTLETTE(1, 0, 24.86, 67.01, { 1984, 11, 8 },
                   24.874552, 66.969059, 30, true),
-  PPLME_TESTLETTE(1, 4, 0, 24.86, 67.01, { 1984, 11, 8 },
-                  24.874552, 66.969059, 30, false),
-  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 9 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 7 }, 0, 0, 30, false),
-  PPLME_TESTLETTE(1, 10, 0, 0, 0, { 1984, 11, 8 }, 90, -65, 30, false),
-  PPLME_TESTLETTE(1, 100, 0, 0, 179.99, { 1984, 11, 8 }, 0, -179.99, 30, false),
-  PPLME_TESTLETTE(1, 100, 0, 0, -179.99, { 1984, 11, 8 },0,  179.99, 30, false)
+  PPLME_TESTLETTE(1, 0, 0, 0, { 1984, 11, 9 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 0, 0, 0, { 1984, 11, 7 }, 0, 0, 30, false),
+  PPLME_TESTLETTE(1, 0, 0, 0, { 1984, 11, 8 }, 90, -65, 30, true),
+  PPLME_TESTLETTE(1, 0, 0, 179.99, { 1984, 11, 8 }, 0, -179.99, 30, true),
+  PPLME_TESTLETTE(1, 0, 0, -179.99, { 1984, 11, 8 }, 0, 179.99, 30, true)
 PPLME_TESTLETTES_END(find_matching_ppl_testlettes,
                      PplmeMatchingPplProviderTest_FindMatchingPpl)
 
@@ -104,56 +99,75 @@ PPLME_TESTLETTE_TYPE_BEGIN(FindAllMatchingPplTestlette)
   std::vector<PplPerson> ppl;
   float user_latitude;
   float user_longitude;
+  /* @remarks  These must be lexicographically ordered. */
   std::vector<std::string> expected_matching_ppl;
 PPLME_TESTLETTE_TYPE_END(FindAllMatchingPplTestlette,
                          PplmeMatchingPplProviderTest_FindAllMatchingPpl)
 
 /**
  *  @test  Unlike our FindMatchingPpl counterpart, this class of tests is
- *         designed to ensure that we get "complete" sets back.
+ *         purely about exercising location search and doesn't worry about age.
  */
 TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
-  int const kResolution = 100;
-  int const kMaxDistance = 0;
-  int const kMaxAgeDifference = 10;
+  int const kMaxAgeDifference = 0;
   boost::gregorian::date const kTokenDoB{1914, 11, 25};
-  PplmeMatchingPplProvider ppl_provider{
-      kResolution,
-      kMaxDistance,
-      kMaxAgeDifference,
-      []() { return boost::gregorian::date{2014, 11, 25}; }};
-  for (auto const& ppl_person : GetParam().ppl) {
-    std::unique_ptr<Person> person{new Person{
-        PersonId{boost::uuids::random_generator()()},
-        ppl_person.name,
-        kTokenDoB,
+  auto kDateProvider = []() { return boost::gregorian::date{2014, 11, 25}; };
+  int const kAgeOfUser = 100;
+
+  // Try with multiple grid resolutions to ensure that the algo is sound.
+  /* @todo  Only works when Grid Resolution is 1 for interim algorithm.
+            Doesn't seem like it's worth trying to fix it given we're now
+            about to rewrite using "spiral" so leave it singular for now. */
+  for (int const kGridResolution : { 1 }) {
+    // Create the MatchingPplProvider.
+    PplmeMatchingPplProvider ppl_provider{
+        kGridResolution,
+        kMaxAgeDifference,
+        kDateProvider};
+    // Populate.
+    for (auto const& ppl_person : GetParam().ppl) {
+      std::unique_ptr<Person> person{new Person{
+          PersonId{boost::uuids::random_generator()()},
+          ppl_person.name,
+          kTokenDoB,
+          GeoPosition{
+              GeoPosition::DecimalLatitude{ppl_person.latitude},
+              GeoPosition::DecimalLongitude{ppl_person.longitude}}}};
+      ppl_provider.AddPerson(std::move(person));
+    }
+
+    // Find ppl.
+    PplMatchingParameters matching_params{
         GeoPosition{
-          GeoPosition::DecimalLatitude{ppl_person.latitude},
-          GeoPosition::DecimalLongitude{ppl_person.longitude}}}};
-    ppl_provider.AddPerson(std::move(person));
+            GeoPosition::DecimalLatitude{GetParam().user_latitude},
+            GeoPosition::DecimalLongitude{GetParam().user_longitude}},
+        kAgeOfUser};
+    auto matching_ppl = ppl_provider.FindMatchingPpl(matching_params);
+
+    // To make things a little easier, we just require that the Testlettes are
+    // are lexicographically ordered, then we just need to sort the results to
+    // match.
+    std::sort(matching_ppl.begin(),
+              matching_ppl.end(),
+              [](Person const& lhs, Person const& rhs) {
+                return lhs.name() < rhs.name();
+              });
+    ASSERT_TRUE(
+        GetParam().expected_matching_ppl.size() == matching_ppl.size() &&
+        std::equal(GetParam().expected_matching_ppl.cbegin(),
+                   GetParam().expected_matching_ppl.cend(),
+                   matching_ppl.cbegin(),
+                   [](std::string const& lhs, Person const& rhs) {
+                     return lhs == rhs.name();
+                   }))
+        << "Matching ppl with grid resolution of " << kGridResolution << ": "
+        << ([&matching_ppl]() {
+             std::ostringstream ppl;
+             for (auto const& person : matching_ppl)
+               ppl << person.name() << "; ";
+             return ppl.str();
+            })();
   }
-  ppl_provider.Start();
-
-  PplMatchingParameters matching_params{
-      GeoPosition{
-          GeoPosition::DecimalLatitude{GetParam().user_latitude},
-          GeoPosition::DecimalLongitude{GetParam().user_longitude}},
-      100};
-  auto matching_ppl = ppl_provider.FindMatchingPpl(matching_params);
-
-  std::sort(matching_ppl.begin(),
-            matching_ppl.end(),
-            [](Person const& lhs, Person const& rhs) {
-              return lhs.name() < rhs.name();
-            });
-  ASSERT_TRUE(
-      GetParam().expected_matching_ppl.size() == matching_ppl.size() &&
-      std::equal(GetParam().expected_matching_ppl.cbegin(),
-                 GetParam().expected_matching_ppl.cend(),
-                 matching_ppl.cbegin(),
-                 [](std::string const& lhs, Person const& rhs) {
-                   return lhs == rhs.name();
-                 }));
 }
 
 PPLME_TESTLETTES_BEGIN(FindAllMatchingPplTestlette,

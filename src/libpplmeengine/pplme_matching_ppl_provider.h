@@ -26,7 +26,6 @@ class PplmeMatchingPplProvider :
  public:
   PplmeMatchingPplProvider(
       int resolution,
-      int max_distance,
       int max_age_difference,
       std::function<boost::gregorian::date()> date_provider);
   // Need noexcept to work-around gcc bug 53613.
