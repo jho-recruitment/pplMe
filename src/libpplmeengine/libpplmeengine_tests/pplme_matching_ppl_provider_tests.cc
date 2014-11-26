@@ -172,6 +172,7 @@ TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
 
 PPLME_TESTLETTES_BEGIN(FindAllMatchingPplTestlette,
                        find_all_matching_ppl_testlettes)
+  // "Four Corners of the Earth".
   PPLME_TESTLETTE({
       { "Alice", 90, 180 },
       { "Bob", -90, 180 },
@@ -179,9 +180,111 @@ PPLME_TESTLETTES_BEGIN(FindAllMatchingPplTestlette,
       { "Dave", 90, -180 }
     },
     0, 0,
-    { "Alice", "Bob", "Charley", "Dave" })
+    { "Alice", "Bob", "Charley", "Dave" }),
+
+  // Different Corners.  &%D
+  PPLME_TESTLETTE({
+      { "Alice", 90, 0 },
+      { "Bob", 0, 180 },
+      { "Charley", 0, -180 },
+      { "Dave", -90, -180 }
+    },
+    0, 0,
+    { "Alice", "Bob", "Charley", "Dave" }),
+
+  PPLME_TESTLETTE({}, 0, 0, {}),
+
+  // Thank you <http://sqa.fyicenter.com/Online_Test_Tools/Random_Real_Number_Float_Value_Generator.php>.
+  // And Trayport.
+  // Forever <3.
+  PPLME_TESTLETTE({
+      { "Ayse", 24.2578060991, 69.1686814694 },
+      { "Ben", -1.3534089324, 148.8467404101 },
+      { "Chris", 59.342451696, -170.6773138562 },
+      { "Digvijay", -80.0705690915, 23.9866400901 },
+      { "Eddie", -58.5537641442, 120.3131025007 },
+      { "FilB", 36.0427269275, 140.5816196094 },
+      { "Gassman", -81.2790118769, 34.2015072397 },
+      { "Hillary", -74.2717380562, 61.6072383717 },
+      { "Iliyan", 85.2710097727, 19.7881726175 },
+      { "Joe", -59.5607030436, -52.0936625973 }
+    },
+    0, 0,
+    { "Ayse", "Ben", "Chris", "Digvijay", "Eddie",
+      "FilB", "Gassman", "Hillary", "Iliyan", "Joe" }),
+
 PPLME_TESTLETTES_END(find_all_matching_ppl_testlettes,
                      PplmeMatchingPplProviderTest_FindAllMatchingPpl)
+
+
+/**
+ *  @test  Test with Homer and The User at all the various permutations of
+ *         ridiculously-quantized latitudes+longitudes.
+ *  @remarks  We cheat somewhat here and autogenerate a boatload of Testlettes
+ *            to save having to spell out the combos by hand (read as: Python).
+ */
+std::vector<FindAllMatchingPplTestlette> AllTheLatLongBigHitterCombos() {
+  float const kLats[] = { -90, -45, 0, 45, 90 };
+  float const kLongs[] = { -180, -120, -60, -30, 0, 30, 60, 120, 180 };
+
+  std::vector<FindAllMatchingPplTestlette> testlettes;
+  for (auto homerlat : kLats) {
+    for (auto homerlong : kLongs) {
+      for (auto userlat : kLats) {
+        for (auto userlong : kLongs) {
+          std::ostringstream testlette_desc;
+          testlette_desc << "User (" << userlat << ", " << userlong
+                         << ") -> Homer (" << homerlat << ", " << homerlong 
+                         << ")";
+          testlettes.push_back(FindAllMatchingPplTestlette{
+              { { "Homer", homerlat, homerlong } },
+              userlat, userlong,
+              { "Homer" },
+              testlette_desc.str()});
+        }
+      }
+    }
+  }
+
+  return testlettes;
+}
+INSTANTIATE_TEST_CASE_P(AllTheLatLongBigHitterCombos,
+                        PplmeMatchingPplProviderTest_FindAllMatchingPpl,
+                        testing::ValuesIn(AllTheLatLongBigHitterCombos()));
+
+
+/**
+ *  @test  Test with Homer and The User at a multitude of random locations.
+ */
+std::vector<FindAllMatchingPplTestlette> RandomLatLongCombos() {
+  int const kComboCount = 1024;
+
+  std::default_random_engine random_engine;
+  std::uniform_real_distribution<float> latgen{-90, 90};
+  std::uniform_real_distribution<float> longgen{-180, 180};
+  
+  std::vector<FindAllMatchingPplTestlette> testlettes;
+  for (int i = 0; i < kComboCount; ++i) {
+    auto homerlat = latgen(random_engine);
+    auto homerlong = longgen(random_engine);
+    auto userlat = latgen(random_engine);
+    auto userlong = longgen(random_engine);
+
+    std::ostringstream testlette_desc;
+    testlette_desc << "User (" << userlat << ", " << userlong
+                   << ") -> Homer (" << homerlat << ", " << homerlong << ")";
+    testlettes.push_back(FindAllMatchingPplTestlette{
+        { { "Homer", homerlat, homerlong } },
+          userlat, userlong,
+          { "Homer" },
+          testlette_desc.str()});
+  }
+
+  return testlettes;
+}
+INSTANTIATE_TEST_CASE_P(RandomLatLongCombos,
+                        PplmeMatchingPplProviderTest_FindAllMatchingPpl,
+                        testing::ValuesIn(RandomLatLongCombos()));
 
 
 }  // namespace

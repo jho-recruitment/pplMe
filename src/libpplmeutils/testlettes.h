@@ -54,7 +54,7 @@
 #define PPLME_TESTLETTE_TYPE_BEGIN(testlette_type)  \
 struct testlette_type {
 #define PPLME_TESTLETTE_TYPE_END(testlette_type, test_case_name)  \
-  char const* const testlette;  \
+  std::string const testlette;                                           \
 };  \
 \
 std::ostream& operator<<(std::ostream& stream,  \
