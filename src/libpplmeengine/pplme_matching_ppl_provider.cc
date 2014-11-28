@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <set>
 #include <thread>
 #include <boost/math/constants/constants.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -156,10 +157,12 @@ class PplmeMatchingPplProvider::Impl {
  public:
   Impl(int resolution,
        int max_age_difference,
+       int max_ppl,
        std::function<boost::gregorian::date()> date_provider) :
       resolution_{resolution},
       date_provider_{date_provider},
       max_age_difference_{max_age_difference},
+      max_ppl_{max_ppl},
       ppl_{CalculateSizeForPplGrid(resolution)} {
     workers_.reset(new NoddyWorkerPool{});
   }
@@ -183,10 +186,91 @@ class PplmeMatchingPplProvider::Impl {
   }
 
 
+    
+  using PplCell = std::vector<std::unique_ptr<core::Person>>;
+  /** @note  This is sorted in date-of-birth order. */
+  using PplGrid = std::vector<PplCell>;
+  
+
+  struct CellLocator {
+    PplGrid::size_type latitude_index;
+    PplGrid::size_type longitude_index;
+    bool operator<(CellLocator rhs) const {
+      if (latitude_index == rhs.latitude_index)
+        return longitude_index < rhs.longitude_index;
+      else
+        return latitude_index < rhs.latitude_index;
+    }
+  };
+
+
+
   std::vector<Person>
   FindMatchingPpl(core::PplMatchingParameters const& parameters) const
   {
     std::vector<Person> ppl;
+
+    std::set<CellLocator> pending_cells;
+    std::mutex mutex;
+    std::condition_variable condvar;
+    bool we_done_here = false;
+    
+    auto SMASH = [&](CellLocator cell) {
+        std::unique_lock<std::mutex> lock(mutex);
+        condvar.wait(
+            lock,
+            [&]() {
+              return we_done_here || (int)ppl.size() >= max_ppl_ || pending_cells.size() < 3/*std::thread::hardware_concurrency()*/;
+            });
+        if ((int)ppl.size() >= max_ppl_) {
+          we_done_here = true;
+          condvar.wait(
+              lock,
+              [&]() {
+                return pending_cells.empty();
+              });
+        } else if (!we_done_here) {
+          //printf("INSERT: %d,%d\n", (int)cell.latitude_index, (int)cell.longitude_index);
+          CHECK(pending_cells.insert(cell).second);
+          workers_->QueueWorklette([cell, this, &mutex, &we_done_here, &ppl, &condvar, &parameters, &pending_cells]() {
+              bool done;
+              /* lock block */ {
+                std::unique_lock<std::mutex> lock(mutex);
+                done = we_done_here;
+                if (done) {
+                  CHECK(pending_cells.erase(cell) == 1);
+                  condvar.notify_all();
+                }
+              }
+
+              if (!done) {
+                std::vector<Person> my_ppl;
+                FindMatchingPpl(parameters, ppl_[GetPplIndex(cell)], &my_ppl);
+                std::unique_lock<std::mutex> lock(mutex);
+                for (auto const& person : my_ppl)
+                  ppl.push_back(person);
+                CHECK(pending_cells.erase(cell) == 1);
+                condvar.notify_all();            
+              }
+              //printf("ERASE: %d,%d\n", (int)cell.latitude_index, (int)cell.longitude_index);
+            });
+        }
+        
+        return we_done_here;
+      // HOW WE ABORT?  &:S
+    };
+    
+    Sqiral(ToCellLocator(parameters.location_of_user()), SMASH);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    condvar.wait(
+        lock,
+        [&]() {
+          return pending_cells.empty();
+        });
+
+#if 0
+    throw 0;
 
     // Start off by just considering the cell that the user conceptually
     // resides in.
@@ -271,7 +355,8 @@ class PplmeMatchingPplProvider::Impl {
       // Make sure that any unfinished work doesn't smash us up.
       orchestration->ppl = nullptr;
     }
-    
+#endif
+  
     return ppl;
   }
 
@@ -280,13 +365,19 @@ class PplmeMatchingPplProvider::Impl {
   using Latitude = GeoPosition::DecimalLatitude;
   using Longitude = GeoPosition::DecimalLongitude;
   
-  using PplCell = std::vector<std::unique_ptr<core::Person>>;
+  //using PplCell = std::vector<std::unique_ptr<core::Person>>;
   /** @note  This is sorted in date-of-birth order. */
-  using PplGrid = std::vector<PplCell>;
-  
+  //using PplGrid = std::vector<PplCell>;
+
+  /** Having this unsigned is slightly against the Google C++ Style Guide;
+      however, it means we don't have to cast everywhere to avoid warnings
+      about signed/unsigned comparisons and all that guff. */
+
+
   int resolution_;
   std::function<boost::gregorian::date()> date_provider_;
   int max_age_difference_;
+  int max_ppl_;
   /** @note  This is sorted in date-of-birth order. */
   PplGrid ppl_;
   boost::scoped_ptr<NoddyWorkerPool> workers_;
@@ -305,13 +396,7 @@ class PplmeMatchingPplProvider::Impl {
     return longitude_index * resolution_;
   }
 
-
-  struct CellLocator {
-    PplGrid::size_type latitude_index;
-    PplGrid::size_type longitude_index;
-  };
-
-
+  
   CellLocator ToCellLocator(GeoPosition geopos) const {
     return CellLocator{
         GetLatitudeIndex(geopos.latitude()),
@@ -433,6 +518,161 @@ class PplmeMatchingPplProvider::Impl {
   }
 
 
+  enum class CheckOffsetsResult {
+    Valid,
+    Terminal,
+    Invalid,
+  };
+
+  mutable bool ugh = false;
+
+
+  CheckOffsetsResult CheckOffsets(CellLocator origin,
+                                  int lat_off,
+                                  int long_off) const {
+    auto result = CheckOffsetsResult::Invalid;
+    
+    int max_east_offset = 180 * resolution_;
+    int max_west_offset = 180 * resolution_;
+
+    int max_lat_index = 181 * resolution_;
+    int lat_index = (int)origin.latitude_index + lat_off;
+    
+    if (long_off <= max_east_offset && long_off >= -max_west_offset) {
+
+      if (lat_index >= 0 && lat_index <= max_lat_index) {
+        if ((long_off == max_east_offset || long_off == -max_west_offset)
+            && (lat_index == 0 || lat_index == max_lat_index))
+          result = CheckOffsetsResult::Terminal;
+        else
+          result = CheckOffsetsResult::Valid;
+      }
+    }
+
+
+    
+    //if (long_off >= max_long_offset || long_off <= -max_long_offset
+    //        || lat_index == 0 || lat_index >= max_lat_index)
+    //if (ugh /*&& result != CheckOffsetsResult::Invalid*/)
+    //  printf("%d,%d : %d\n", lat_off, long_off, result);
+    
+    return result;
+  }
+  
+  bool Sqiral(CellLocator locator, std::function<bool (CellLocator)> fun) const {
+    bool we_done_here = false;
+
+    bool ne_done = false;
+    bool se_done = false;
+    bool sw_done = false;
+    bool nw_done = false;
+
+    int corner_count = 0;
+    
+    printf("%d, %d\n", (int)locator.latitude_index, (int)locator.longitude_index);
+    
+    auto do_fun = [locator, fun, this, &corner_count](int lat_off, int long_off, bool* corner) {
+      auto check_offsets_result = CheckOffsets(locator, lat_off, long_off);
+      if (check_offsets_result == CheckOffsetsResult::Terminal) {
+        //printf("corner! %d, %d\n", lat_off, long_off);
+        *corner = true;
+        ++corner_count;
+      }
+      if (check_offsets_result == CheckOffsetsResult::Terminal ||
+          check_offsets_result == CheckOffsetsResult::Valid) {
+        int long_index = (int)locator.longitude_index + long_off;
+        if (long_index > 0) {
+          long_index %= 361;
+          //if (long_index == 0)
+          //  printf("zero! (%d)\n", (int)locator.latitude_index + lat_off);
+        }
+        else if (long_index != 0)
+          long_index = (361 + long_index) % 361;
+
+        //if (long_index == 0)
+       //   printf("zero! %d, %d\n", check_offsets_result, (int)locator.latitude_index + lat_off);
+        
+        CellLocator cell{
+          (size_t)((int)locator.latitude_index + lat_off),
+          (size_t)long_index};
+        return fun(cell);
+      }
+      return false;
+    };
+
+    bool junk;
+    we_done_here = do_fun(0, 0, &junk);
+
+    //if (locator.latitude_index == 180 && locator.longitude_index == 360)
+    //  nw_done = true;
+    //else if (locator.latitude_index == 0 && locator.longitude_index == 360)
+    //  sw_done = true;
+    //else if (locator.latitude_index == 0 && locator.longitude_index == 0)
+     // se_done = true;
+    //else if (locator.latitude_index == 180 && locator.longitude_index == 0)
+    //  ne_done = true;
+
+    //printf("%d : %d, %d, %d, %d\n", 0, ne_done, se_done, sw_done, nw_done);
+
+    for (int max_offset = 1; !we_done_here ; ++max_offset) {
+      if (max_offset > 719)
+        ugh = true;
+
+      
+      if (max_offset > 0) {
+        
+      //if (ne_done || se_done || sw_done || nw_done)
+       //printf("%d : %d, %d, %d, %d\n", max_offset, ne_done, se_done, sw_done, nw_done);
+        
+
+        if (max_offset > 1000)
+
+          return true;
+      }
+
+      //printf("%d\n",max_offset);
+      
+      int north_offset = max_offset;
+      int east_offset = 0;
+      // N -> E
+      for (; /*!ne_done &&*/ !we_done_here && north_offset > 0;
+           ++east_offset, --north_offset) {
+        we_done_here = do_fun(north_offset, east_offset, &ne_done);
+      }
+      // E -> S
+      int south_offset = 0;
+      east_offset = max_offset;
+      for (; /*!se_done &&*/ !we_done_here && east_offset > 0;
+           ++south_offset, --east_offset) {
+        we_done_here = do_fun(-south_offset, east_offset, &se_done);
+      }
+      // S -> W
+      int west_offset = 0;
+      south_offset = max_offset;
+      for (; /*!sw_done &&*/ !we_done_here && south_offset > 0;
+           ++west_offset, --south_offset) {
+        //if (west_offset > 179)
+        //  printf("%d\n", west_offset);
+        we_done_here = do_fun(-south_offset, -west_offset, &sw_done);
+      }
+      // W -> N
+      north_offset = 0;
+      west_offset = max_offset;
+      for (; !we_done_here && west_offset > 0;
+           ++north_offset, --west_offset) {
+        we_done_here = do_fun(north_offset, -west_offset, &nw_done);
+      }
+
+      //if (ne_done && se_done && sw_done && nw_done)
+      //  we_done_here = true;
+      if (corner_count == 4)
+        we_done_here = true;
+    }
+
+    return we_done_here;
+  }
+  
+
   void FindMatchingPpl(
       core::PplMatchingParameters const& parameters,
       std::vector<std::unique_ptr<Person>> const& ppl_cell,
@@ -459,8 +699,9 @@ class PplmeMatchingPplProvider::Impl {
 PplmeMatchingPplProvider::PplmeMatchingPplProvider(
     int resolution,
     int max_age_difference,
+    int max_ppl,
     std::function<boost::gregorian::date()> date_provider) :
-    impl_{new Impl{resolution, max_age_difference, date_provider}} {
+    impl_{new Impl{resolution, max_age_difference, max_ppl, date_provider}} {
   CHECK(max_age_difference >= 0);
   CHECK(date_provider);
 }
