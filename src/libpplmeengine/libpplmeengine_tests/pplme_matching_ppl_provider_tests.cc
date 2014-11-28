@@ -43,11 +43,9 @@ PPLME_TESTLETTE_TYPE_END(FindMatchingPplTestlette,
                          PplmeMatchingPplProviderTest_FindMatchingPpl)
 
 TEST_P(PplmeMatchingPplProviderTest_FindMatchingPpl, Tests) {
-  int const kMaxPpl = 1;
   PplmeMatchingPplProvider ppl_provider(
       GetParam().resolution,
       GetParam().max_age_difference,
-      kMaxPpl,
       []() { return boost::gregorian::date{2014, 11, 8}; });
   std::unique_ptr<Person> person{new Person{
       GetTokenPersonId(),
@@ -71,8 +69,6 @@ TEST_P(PplmeMatchingPplProviderTest_FindMatchingPpl, Tests) {
 }
 
 PPLME_TESTLETTES_BEGIN(FindMatchingPplTestlette, find_matching_ppl_testlettes)
-  PPLME_TESTLETTE(1, 1, -45, -180, { 1984, 11, 8 }, -90, 0, 30, true),
-
   PPLME_TESTLETTE(1, 1, 0, 0, { 1984, 11, 8 }, 0, 0, 30, true),
   PPLME_TESTLETTE(1, 1, -1, 0, { 1984, 11, 8 }, 0, 0, 30, true),
   PPLME_TESTLETTE(1, 1, 1, 0, { 1984, 11, 8 }, 0, 0, 30, true),
@@ -127,7 +123,6 @@ TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
     PplmeMatchingPplProvider ppl_provider{
         kGridResolution,
         kMaxAgeDifference,
-        (int)GetParam().ppl.size(),
         kDateProvider};
     // Populate.
     for (auto const& ppl_person : GetParam().ppl) {
@@ -177,10 +172,6 @@ TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
 
 PPLME_TESTLETTES_BEGIN(FindAllMatchingPplTestlette,
                        find_all_matching_ppl_testlettes)
-
-  PPLME_TESTLETTE({}, 0, 0, {}),
-
-
   // "Four Corners of the Earth".
   PPLME_TESTLETTE({
       { "Alice", 90, 180 },
@@ -200,6 +191,8 @@ PPLME_TESTLETTES_BEGIN(FindAllMatchingPplTestlette,
     },
     0, 0,
     { "Alice", "Bob", "Charley", "Dave" }),
+
+  PPLME_TESTLETTE({}, 0, 0, {}),
 
   // Thank you <http://sqa.fyicenter.com/Online_Test_Tools/Random_Real_Number_Float_Value_Generator.php>.
   // And Trayport.
@@ -232,7 +225,7 @@ PPLME_TESTLETTES_END(find_all_matching_ppl_testlettes,
  */
 std::vector<FindAllMatchingPplTestlette> AllTheLatLongBigHitterCombos() {
   float const kLats[] = { -90, -45, 0, 45, 90 };
-  float const kLongs[] = { -180, -120, -60, 0, 60, 120, 180 };
+  float const kLongs[] = { -180, -120, -60, -30, 0, 30, 60, 120, 180 };
 
   std::vector<FindAllMatchingPplTestlette> testlettes;
   for (auto homerlat : kLats) {
