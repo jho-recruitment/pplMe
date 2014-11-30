@@ -8,6 +8,7 @@
 #define PPLME_LIBPPLMEENGINE_PPLMEMATCHINGPPLPROVIDER_H_
 
 
+#include <boost/optional.hpp>
 #include "libpplmecore/matching_ppl_provider.h"
 #include "libpplmeutils/pimpl.h"
 #include "ppl_repository.h"
@@ -27,6 +28,8 @@ class PplmeMatchingPplProvider :
   PplmeMatchingPplProvider(
       int resolution,
       int max_age_difference,
+      int max_ppl,
+      boost::optional<int> per_find_concurrency,
       std::function<boost::gregorian::date()> date_provider);
   // Need noexcept to work-around gcc bug 53613.
   ~PplmeMatchingPplProvider() noexcept (true);

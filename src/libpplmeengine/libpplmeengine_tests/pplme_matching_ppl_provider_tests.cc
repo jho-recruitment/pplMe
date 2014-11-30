@@ -5,6 +5,7 @@
  */
 
 
+#include <boost/numeric/conversion/cast.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/string_generator.hpp>
 #include <gtest/gtest.h>
@@ -20,6 +21,13 @@ using pplme::engine::PplmeMatchingPplProvider;
 
 
 namespace {
+
+
+/** @remarks  Using the default (of std::thread::hardware_concurrency()) turns
+              out to be quite a bit slower than 1 on my dev box; however, we
+              want to have some confidence that there are no races, so use 3
+              as hopefully a reasonable compromise. */
+int const kPerFindConcurrency = 3;
 
 
 PersonId GetTokenPersonId()
@@ -43,9 +51,12 @@ PPLME_TESTLETTE_TYPE_END(FindMatchingPplTestlette,
                          PplmeMatchingPplProviderTest_FindMatchingPpl)
 
 TEST_P(PplmeMatchingPplProviderTest_FindMatchingPpl, Tests) {
+  int const kMaxPpl = 1;
   PplmeMatchingPplProvider ppl_provider(
       GetParam().resolution,
       GetParam().max_age_difference,
+      kMaxPpl,
+      kPerFindConcurrency,
       []() { return boost::gregorian::date{2014, 11, 8}; });
   std::unique_ptr<Person> person{new Person{
       GetTokenPersonId(),
@@ -123,6 +134,9 @@ TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
     PplmeMatchingPplProvider ppl_provider{
         kGridResolution,
         kMaxAgeDifference,
+        GetParam().ppl.empty() ?
+            1 : boost::numeric_cast<int>(GetParam().ppl.size()),
+        kPerFindConcurrency,
         kDateProvider};
     // Populate.
     for (auto const& ppl_person : GetParam().ppl) {

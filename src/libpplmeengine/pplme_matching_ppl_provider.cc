@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <set>
 #include <thread>
 #include <boost/math/constants/constants.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -48,42 +49,6 @@ size_t CalculateSizeForPplGrid(int resolution) {
 }
 
 
-float ApproxDistance(GeoPosition::DecimalLatitude value1,
-                     GeoPosition::DecimalLatitude value2) {
-  // The value of 110.0 is just smaller than the range of possible values for
-  // Terra's latitude.  This is by design---since accuracy isn't paramount we'd
-  // rather be accidentally inclusive than accidentally exclusive.
-  return abs((value2.value() - value1.value()) * 110.0);
-}
-
-
-float ApproxDistance(GeoPosition::DecimalLatitude latitude,
-                     GeoPosition::DecimalLongitude value1,
-                     GeoPosition::DecimalLongitude value2) {
-  // Thank you, <http://en.wikipedia.org/wiki/Longitude#Length_of_a_degree_of_longitude>.
-  using boost::math::constants::pi;
-  auto result = cos(latitude.value() * pi<float>() / 180);
-  result *= pi<float>() / 180;
-  result *= kRadiusOfEarth;
-  result *= (value2.value() - value1.value());
-  return abs(result);
-}
-
-
-float ApproxDistance(GeoPosition position1, GeoPosition position2) {
-  // This doesn't properly calculate the distance due it effectively assuming
-  // a single latitude (to make the math easier).  This should be good enough
-  // for pplMe; it's only going to start going really wrong as locations near
-  // one of the Poles.
-  auto longitudinally = ApproxDistance(
-      position1.latitude(), position1.longitude(), position2.longitude());
-  auto latitudinally = ApproxDistance(
-      position1.latitude(), position2.latitude());
-  return
-      sqrt((longitudinally * longitudinally) + (latitudinally * latitudinally));
-}
-
-
 class NoddyWorkerPool {
  public:
   NoddyWorkerPool() {
@@ -108,6 +73,7 @@ class NoddyWorkerPool {
     work_.push_back(worklette);
     work_or_die_.notify_all();
   }
+
   
  private:
   std::vector<std::thread> workers_;
@@ -156,11 +122,22 @@ class PplmeMatchingPplProvider::Impl {
  public:
   Impl(int resolution,
        int max_age_difference,
+       int max_ppl,
+       boost::optional<int> per_find_concurrency,
        std::function<boost::gregorian::date()> date_provider) :
       resolution_{resolution},
       date_provider_{date_provider},
       max_age_difference_{max_age_difference},
+      max_ppl_{boost::numeric_cast<unsigned int>(max_ppl)},
+      per_find_concurrency_{
+          per_find_concurrency ?
+              *per_find_concurrency : std::thread::hardware_concurrency()},
       ppl_{CalculateSizeForPplGrid(resolution)} {
+    CHECK(max_age_difference >= 0);
+    CHECK(max_ppl_ > 0);
+    CHECK(!per_find_concurrency || per_find_concurrency > 0);
+    CHECK(date_provider);
+        
     workers_.reset(new NoddyWorkerPool{});
   }
 
@@ -186,93 +163,22 @@ class PplmeMatchingPplProvider::Impl {
   std::vector<Person>
   FindMatchingPpl(core::PplMatchingParameters const& parameters) const
   {
-    std::vector<Person> ppl;
-
-    // Start off by just considering the cell that the user conceptually
-    // resides in.
-    auto& grid_pos_ppl = ppl_[GetPplIndex(parameters.location_of_user())];
-    FindMatchingPpl(parameters, grid_pos_ppl, &ppl);
-
-    // This is how we keep track of async finds and rendezvous with them.
-    struct FindPplOrchestration {
-      std::mutex mutex;
-      std::condition_variable condvar;
-      std::vector<Person>* ppl;
-      int pending_ops;
-    };
-    std::shared_ptr<FindPplOrchestration> orchestration;
-
-    // Then inspect the "nearby" cells.
-    auto nearby_cells = GetNearbyCells(parameters.location_of_user());
-    for (auto cell : nearby_cells) {
-      if (!orchestration) {
-          orchestration = std::make_shared<FindPplOrchestration>();
-          orchestration->ppl = &ppl;
-          orchestration->pending_ops = 0;
-      }
-      
-      // resultslette is just for this one op
-      auto resultslette = std::make_shared<std::vector<Person>>();
-      auto findppl_worklette =
-          [this, parameters, cell, orchestration, resultslette]() {
-        /* lock block */ {
-          std::unique_lock<std::mutex> lock(orchestration->mutex);
-          if (!orchestration->ppl) {
-            --orchestration->pending_ops;
-            orchestration->condvar.notify_all();
-            return;
-          }
-        }
-
-        // Yup, this is done asynchronously.  And it got me realizing that I
-        // think I was a bit of a dumbass for putting the person's name in the
-        // Person class; or, at least, not having a different class for storing
-        // in the grid.  That way, you could have names (and whatever other
-        // metadata) fetched asynchronously from some other datastore (RDBMS
-        // or whatever) while the core engine busied itself smashing through
-        // the problem of actually finding matches (the id is key, right?).
-        // Oh and I also just realized that I could probably save quite a bit
-        // of memory given the fact that name /is/ a member of Person by having
-        // some sort of compression based on a rop of name atoms or somesuch.
-        // Oh well, it's too late now, eh?  &:/
-        FindMatchingPpl(
-            parameters, ppl_[GetPplIndex(cell)], resultslette.get());
-
-        /* lock block */ {
-          std::unique_lock<std::mutex> lock(orchestration->mutex);
-          if (orchestration->ppl) {
-            for (auto person : *resultslette)
-              orchestration->ppl->push_back(person);
-          }
-          --orchestration->pending_ops;
-          orchestration->condvar.notify_all();
-        }
-      };
-
-      /* lock bock */ {
-        std::unique_lock<std::mutex> lock(orchestration->mutex);
-        ++orchestration->pending_ops;
-      }
-
-      workers_->QueueWorklette(findppl_worklette);
-    }
-
-    // Only do this if we actually queued any work.
-    if (orchestration) {
-      std::unique_lock<std::mutex> lock(orchestration->mutex);
-      if (orchestration->pending_ops != 0) {
-        orchestration->condvar.wait_for(
-            lock,
-            // Spec says to return within 1 second.  This is where that magic
-            // happens.
-            std::chrono::seconds(120),
-            [orchestration]() { return orchestration->pending_ops == 0; });
-      }
-      // Make sure that any unfinished work doesn't smash us up.
-      orchestration->ppl = nullptr;
-    }
+    FindContext context;
+    context.parameters = &parameters;
     
-    return ppl;
+    Sqiral(ToCellLocator(parameters.location_of_user()),
+           [this, &context](CellLocator cell) {
+             return TryFindPpl(cell, &context);
+           });
+
+    std::unique_lock<std::mutex> lock(context.mutex);
+    context.condvar.wait(
+        lock,
+        [&context]() {
+          return context.pending_cells.empty();
+        });
+
+    return context.ppl;
   }
 
 
@@ -283,10 +189,15 @@ class PplmeMatchingPplProvider::Impl {
   using PplCell = std::vector<std::unique_ptr<core::Person>>;
   /** @note  This is sorted in date-of-birth order. */
   using PplGrid = std::vector<PplCell>;
-  
+
   int resolution_;
   std::function<boost::gregorian::date()> date_provider_;
   int max_age_difference_;
+  /* Having this unsigned is slightly against the Google C++ Style Guide;
+     however, it means we don't have to cast everywhere to avoid warnings
+     about signed/unsigned comparisons and all that guff. */
+  unsigned int max_ppl_;
+  unsigned int per_find_concurrency_;
   /** @note  This is sorted in date-of-birth order. */
   PplGrid ppl_;
   boost::scoped_ptr<NoddyWorkerPool> workers_;
@@ -305,13 +216,19 @@ class PplmeMatchingPplProvider::Impl {
     return longitude_index * resolution_;
   }
 
-
+  
   struct CellLocator {
     PplGrid::size_type latitude_index;
     PplGrid::size_type longitude_index;
+    bool operator<(CellLocator rhs) const {
+      if (latitude_index == rhs.latitude_index)
+        return longitude_index < rhs.longitude_index;
+      else
+        return latitude_index < rhs.latitude_index;
+    }
   };
 
-
+  
   CellLocator ToCellLocator(GeoPosition geopos) const {
     return CellLocator{
         GetLatitudeIndex(geopos.latitude()),
@@ -328,111 +245,167 @@ class PplmeMatchingPplProvider::Impl {
     return GetPplIndex(ToCellLocator(geopos));
   }
 
-
-  CellLocator TickNorth(CellLocator locator) const {
-    // Don't need to handle wrap-around here.  IsTooFarNorth polices for us.
-    return CellLocator{locator.latitude_index + 1, locator.longitude_index};
-  }
-
   
-  CellLocator TickSouth(CellLocator locator) const {
-    // Don't need to handle wrap-around here.  IsTooFarSouth polices for us.
-    return CellLocator{locator.latitude_index - 1, locator.longitude_index};
-  }
-
-  
-  CellLocator TickEast(CellLocator locator) const {
-    // Handle wrap-around.
-    return CellLocator{
-      locator.latitude_index,
-      locator.longitude_index >= static_cast<unsigned>(360 * resolution_) ?
-          0 : locator.longitude_index + 1};
-  }
-
-  
-  CellLocator TickWest(CellLocator locator) const {
-    // Handle wrap-around.
-    return CellLocator{
-      locator.latitude_index,
-      locator.longitude_index == 0 ?
-          360 * resolution_ : locator.longitude_index - 1};
-  }
+  enum class CheckOffsetsResult {
+    Valid,
+    Terminal,
+    Invalid,
+  };
 
 
-  bool IsTooFarNorth(GeoPosition, CellLocator cell) const {
-    // Don't go past Pole.
-    return cell.latitude_index > static_cast<unsigned>(180 * resolution_) + 1;
-  }
-
-  
-  bool IsTooFarSouth(GeoPosition, CellLocator cell) const {
-    // Don't go past Pole.
-    return cell.latitude_index == static_cast<PplGrid::size_type>(-1);
-  }
-  
-
-  bool IsTooFarEast(GeoPosition origin, CellLocator cell) const {
-    // Only go half way around globe.
-    auto origin_cell = ToCellLocator(origin);
-    auto const kHalfWayAround = static_cast<unsigned>(180 * resolution_);
-    return cell.longitude_index > origin_cell.longitude_index ?
-        cell.longitude_index - origin_cell.longitude_index > kHalfWayAround
-      : origin_cell.longitude_index - cell.longitude_index <= kHalfWayAround;
-  }
-
-
-  bool IsTooFarWest(GeoPosition origin, CellLocator cell) const {
-    // Only go half way around globe.
-    auto origin_cell = ToCellLocator(origin);
-    auto const kHalfWayAround = static_cast<unsigned>(180 * resolution_);    
-    return cell.longitude_index < origin_cell.longitude_index ?
-          origin_cell.longitude_index - cell.longitude_index > kHalfWayAround
-        : cell.longitude_index - origin_cell.longitude_index <= kHalfWayAround;
-  }
-
-
-  void GetNearbyCellsSameLatitude(
-      GeoPosition origin,
-      CellLocator current_position,
-      std::vector<CellLocator>* cells) const {
-    for (auto cell = TickEast(current_position);
-         !IsTooFarEast(origin, cell);
-         cell = TickEast(cell)) {
-      cells->push_back(cell);
+  CheckOffsetsResult CheckOffsets(CellLocator origin,
+                                  int lat_off,
+                                  int long_off) const {
+    auto result = CheckOffsetsResult::Invalid;
+    
+    int max_long_offset = 180 * resolution_;
+    int max_lat_index = 181 * resolution_;
+    int lat_index = boost::numeric_cast<int>(origin.latitude_index) + lat_off;
+    
+    if (long_off <= max_long_offset && long_off >= -max_long_offset) {
+      if (lat_index >= 0 && lat_index <= max_lat_index) {
+        if ((long_off == max_long_offset || long_off == -max_long_offset)
+            && (lat_index == 0 || lat_index == max_lat_index))
+          result = CheckOffsetsResult::Terminal;
+        else
+          result = CheckOffsetsResult::Valid;
+      }
     }
-    for (auto cell = TickWest(current_position);
-         !IsTooFarWest(origin, cell);
-         cell = TickWest(cell)) {
-      cells->push_back(cell);
-    }
+    
+    return result;
   }
 
   
-  std::vector<CellLocator> GetNearbyCells(GeoPosition geopos) const {
-    std::vector<CellLocator> cells;
+  bool Sqiral(CellLocator origin, std::function<bool (CellLocator)> fun) const {
+    bool we_done_here = false;
 
-    // Initially I went with iterating along the longitudinal axis first, but
-    // at the Oasis Dartboard this evening/morning, I realized that iterating
-    // first via latitude was more correct.  Doh.
-    CellLocator const bullseye = ToCellLocator(geopos);
-    GetNearbyCellsSameLatitude(geopos, bullseye, &cells);
-    for (auto cell = TickNorth(bullseye);
-         !IsTooFarNorth(geopos, cell);
-         cell = TickNorth(cell)) {
-      cells.push_back(cell);
-      GetNearbyCellsSameLatitude(geopos, cell, &cells);
-    }
-    for (auto cell = TickSouth(bullseye);
-         !IsTooFarSouth(geopos, cell);
-         cell = TickSouth(cell)) {
-      cells.push_back(cell);
-      GetNearbyCellsSameLatitude(geopos, cell, &cells);
+    int corner_count = 0;
+    
+    auto do_cell =
+        [origin, fun, this, &corner_count](int lat_off, int long_off) {
+      auto check_offsets_result = CheckOffsets(origin, lat_off, long_off);
+
+      if (check_offsets_result == CheckOffsetsResult::Terminal)
+        ++corner_count;
+
+      if (check_offsets_result == CheckOffsetsResult::Terminal ||
+          check_offsets_result == CheckOffsetsResult::Valid) {
+        int long_index =
+            boost::numeric_cast<int>(origin.longitude_index) + long_off;
+        if (long_index > 0)
+          long_index %= 361;
+        else if (long_index != 0)
+          long_index = (361 + long_index) % 361;
+
+        CellLocator cell{
+            static_cast<unsigned int>(
+                boost::numeric_cast<int>(origin.latitude_index) + lat_off),
+            static_cast<unsigned int>(long_index)};
+        return fun(cell);
+      }
+      return false;
+    };
+
+    we_done_here = do_cell(0, 0);
+
+    for (int max_offset = 1; corner_count != 4 && !we_done_here; ++max_offset) {
+      int north_offset = max_offset;
+      int east_offset = 0;
+      // N -> E
+      for (; !we_done_here && north_offset > 0;
+           ++east_offset, --north_offset) {
+        we_done_here = do_cell(north_offset, east_offset);
+      }
+      // E -> S
+      int south_offset = 0;
+      east_offset = max_offset;
+      for (; !we_done_here && east_offset > 0;
+           ++south_offset, --east_offset) {
+        we_done_here = do_cell(-south_offset, east_offset);
+      }
+      // S -> W
+      int west_offset = 0;
+      south_offset = max_offset;
+      for (; !we_done_here && south_offset > 0;
+           ++west_offset, --south_offset) {
+        we_done_here = do_cell(-south_offset, -west_offset);
+      }
+      // W -> N
+      north_offset = 0;
+      west_offset = max_offset;
+      for (; !we_done_here && west_offset > 0;
+           ++north_offset, --west_offset) {
+        we_done_here = do_cell(north_offset, -west_offset);
+      }
     }
 
-    return cells;
+    return we_done_here;
   }
 
 
+  struct FindContext {
+    core::PplMatchingParameters const* parameters;
+    std::vector<Person> ppl;
+    std::set<CellLocator> pending_cells;
+    std::mutex mutex;
+    std::condition_variable condvar;
+    bool we_done_here = false;
+  };
+
+
+  bool TryFindPpl(CellLocator cell, FindContext* context) const {
+    CHECK_NOTNULL(context);
+    CHECK_NOTNULL(context->parameters);
+    
+    std::unique_lock<std::mutex> lock(context->mutex);
+    context->condvar.wait(
+        lock,
+        [this, context]() {
+          return context->we_done_here
+              || context->ppl.size() >= max_ppl_
+              || context->pending_cells.size() < per_find_concurrency_;
+        });
+    if (context->ppl.size() >= max_ppl_) {
+      context->we_done_here = true;
+      context->condvar.wait(
+          lock,
+          [context]() {
+            return context->pending_cells.empty();
+          });
+    } else if (!context->we_done_here) {
+      CHECK(context->pending_cells.insert(cell).second);
+      workers_->QueueWorklette([this, context, cell]() {
+          TryFindPplAsync(cell, context);
+        });
+    }
+        
+    return context->we_done_here;
+  }
+
+
+  void TryFindPplAsync(CellLocator cell, FindContext* context) const {
+    bool done;
+    /* lock block */ {
+      std::unique_lock<std::mutex> lock(context->mutex);
+      done = context->we_done_here;
+      if (done) {
+        CHECK(context->pending_cells.erase(cell) == 1);
+        context->condvar.notify_all();
+      }
+    }
+          
+    if (!done) {
+      std::vector<Person> my_ppl;
+      FindMatchingPpl(*context->parameters, ppl_[GetPplIndex(cell)], &my_ppl);
+      std::unique_lock<std::mutex> lock(context->mutex);
+      for (auto const& person : my_ppl)
+        context->ppl.push_back(person);
+      CHECK(context->pending_cells.erase(cell) == 1);
+      context->condvar.notify_all();            
+    }
+  }
+
+  
   void FindMatchingPpl(
       core::PplMatchingParameters const& parameters,
       std::vector<std::unique_ptr<Person>> const& ppl_cell,
@@ -459,11 +432,15 @@ class PplmeMatchingPplProvider::Impl {
 PplmeMatchingPplProvider::PplmeMatchingPplProvider(
     int resolution,
     int max_age_difference,
+    int max_ppl,
+    boost::optional<int> per_find_concurrency,
     std::function<boost::gregorian::date()> date_provider) :
-    impl_{new Impl{resolution, max_age_difference, date_provider}} {
-  CHECK(max_age_difference >= 0);
-  CHECK(date_provider);
-}
+    impl_{new Impl{
+        resolution,
+        max_age_difference,
+        max_ppl,
+        per_find_concurrency,
+        date_provider}} {}
 
 
 PplmeMatchingPplProvider::~PplmeMatchingPplProvider() noexcept(true) = default;
