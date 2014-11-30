@@ -178,6 +178,12 @@ class PplmeMatchingPplProvider::Impl {
           return context.pending_cells.empty();
         });
 
+    // Because we're likely multi-threaded, this list may not necessarily be
+    // in order of distance.  If we were going for accuracy, we could sort
+    // based on the haversine formula; however, this should be good enough for
+    // pplMe purposes.
+    context.ppl.resize(max_ppl_);
+
     return context.ppl;
   }
 

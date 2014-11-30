@@ -12,7 +12,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <glog/logging.h>
 #include "libpplmeengine/ppl_slurper.h"
-#include "libpplmeengine/prototype_matching_ppl_provider.h"
+#include "libpplmeengine/pplme_matching_ppl_provider.h"
 #include "libpplmenet/message.h"
 #include "libpplmenet/single_shot_server.h"
 #include "libpplmeproto/convert_geo_position.h"
@@ -22,6 +22,10 @@
 
 
 namespace {
+
+
+/** Harcode this for now as we don't appear to terminate properly if > 1. */
+int const kPplmeGridResolution = 1;
 
 
 // Timezones have a tendency to be tricky.  We wuss out here and just opt for
@@ -42,16 +46,16 @@ class Server::Impl {
   Impl(
       int port,
       int test_db_size,
-      int grid_resolution,
-      int max_distance,
+      int max_ppl,
       int max_age_difference,
       std::string const& ppldata_filename) :
       test_db_size_{test_db_size},
       ppldata_filename_{ppldata_filename},
       matching_ppl_provider_{
-          grid_resolution,
-          max_distance,
+          kPplmeGridResolution,
           max_age_difference,
+          max_ppl,
+          boost::none,    
           &GetTodaysDate},
       pplme_requests_server_{
           boost::numeric_cast<unsigned short>(port),
@@ -83,9 +87,6 @@ class Server::Impl {
       LOG(INFO) << "Generating ppl test data...";
       PopulateTestDb();
     }
-
-    if (ok)
-      matching_ppl_provider_.Start();
     
     ok = ok && pplme_requests_server_.Start();
 
@@ -96,7 +97,7 @@ class Server::Impl {
  private:
   int test_db_size_;
   std::string ppldata_filename_;
-  engine::PrototypeMatchingPplProvider matching_ppl_provider_;
+  engine::PplmeMatchingPplProvider matching_ppl_provider_;
   net::SingleShotServer pplme_requests_server_;
 
   
@@ -191,14 +192,12 @@ class Server::Impl {
 Server::Server(
     int port,
     int test_db_size,
-    int grid_resolution,
     int max_distance,
     int max_age_difference,
     std::string const& ppldata_filename) :
     impl_{new Impl{
         port,
         test_db_size,
-        grid_resolution,
         max_distance,
         max_age_difference,
         ppldata_filename}} {}

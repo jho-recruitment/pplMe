@@ -26,9 +26,7 @@ class Server {
    *  @param  test_db_size is the number of random entries that should be
    *          smashed into the pplMe test database.  This value is ignored if
    *          @a ppldata is non-empty.
-   *  @param  grid_resolution is the number of cells per decimal degree (in
-   *          each "dimension").
-   *  @param  max_distance is how far we'll look from the user for a match.
+   *  @param  max_ppl is the maximum number of ppl to return to a query.
    *  @param  max_age_difference is the maximum number of years difference in
    *          age for a person to be considered a match.
    *  @param  ppldata_filename is the name of a CSV file that is used to
@@ -38,8 +36,7 @@ class Server {
   Server(
       int port,
       int test_db_size,
-      int grid_resolution,
-      int max_distance,
+      int max_ppl,
       int max_age_difference,
       std::string const& ppldata_filename);
   ~Server();
