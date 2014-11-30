@@ -182,7 +182,8 @@ class PplmeMatchingPplProvider::Impl {
     // in order of distance.  If we were going for accuracy, we could sort
     // based on the haversine formula; however, this should be good enough for
     // pplMe purposes.
-    context.ppl.resize(max_ppl_);
+    if (context.ppl.size() > max_ppl_)
+      context.ppl.resize(max_ppl_);
 
     return context.ppl;
   }
