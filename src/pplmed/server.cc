@@ -24,10 +24,6 @@
 namespace {
 
 
-/** Harcode this for now as we don't appear to terminate properly if > 1. */
-int const kPplmeGridResolution = 1;
-
-
 // Timezones have a tendency to be tricky.  We wuss out here and just opt for
 // localtime.  &:/
 boost::gregorian::date GetTodaysDate() {
@@ -46,13 +42,14 @@ class Server::Impl {
   Impl(
       int port,
       int test_db_size,
+      int grid_resolution,
       int max_ppl,
       int max_age_difference,
       std::string const& ppldata_filename) :
       test_db_size_{test_db_size},
       ppldata_filename_{ppldata_filename},
       matching_ppl_provider_{
-          kPplmeGridResolution,
+          grid_resolution,
           max_age_difference,
           max_ppl,
           boost::none,    
@@ -192,12 +189,14 @@ class Server::Impl {
 Server::Server(
     int port,
     int test_db_size,
+    int grid_resolution,
     int max_distance,
     int max_age_difference,
     std::string const& ppldata_filename) :
     impl_{new Impl{
         port,
         test_db_size,
+        grid_resolution,
         max_distance,
         max_age_difference,
         ppldata_filename}} {}

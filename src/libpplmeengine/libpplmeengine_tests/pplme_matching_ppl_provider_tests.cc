@@ -126,10 +126,7 @@ TEST_P(PplmeMatchingPplProviderTest_FindAllMatchingPpl, Tests) {
   int const kAgeOfUser = 100;
 
   // Try with multiple grid resolutions to ensure that the algo is sound.
-  /* @todo  Only works when Grid Resolution is 1 for interim algorithm.
-            Doesn't seem like it's worth trying to fix it given we're now
-            about to rewrite using "spiral" so leave it singular for now. */
-  for (int const kGridResolution : { 1 }) {
+  for (int const kGridResolution : { 1, 10 }) {
     // Create the MatchingPplProvider.
     PplmeMatchingPplProvider ppl_provider{
         kGridResolution,

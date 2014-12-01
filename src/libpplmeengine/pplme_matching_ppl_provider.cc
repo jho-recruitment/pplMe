@@ -41,9 +41,9 @@ size_t CalculateSizeForPplGrid(int resolution) {
 
   // + 2 because the ranges are inclusive.
   size_t num_quantized_latitude_values =
-      ((kMaxLatitudeDegrees - kMinLatitudeDegrees) * resolution) + 2;
+      ((2 + kMaxLatitudeDegrees - kMinLatitudeDegrees) * resolution);
   size_t num_quantized_longitude_values =
-      ((kMaxLongitudeDegrees - kMinLongitudeDegrees) * resolution) + 2;
+      ((2 + kMaxLongitudeDegrees - kMinLongitudeDegrees) * resolution);
 
   return num_quantized_latitude_values * num_quantized_longitude_values;
 }
@@ -244,7 +244,7 @@ class PplmeMatchingPplProvider::Impl {
 
   
   PplGrid::size_type GetPplIndex(CellLocator cell) const {
-    return cell.latitude_index * 361 + cell.longitude_index;
+    return cell.latitude_index * 361 * resolution_ + cell.longitude_index;
   }
 
   
@@ -300,9 +300,9 @@ class PplmeMatchingPplProvider::Impl {
         int long_index =
             boost::numeric_cast<int>(origin.longitude_index) + long_off;
         if (long_index > 0)
-          long_index %= 361;
+          long_index %= 361 * resolution_;
         else if (long_index != 0)
-          long_index = (361 + long_index) % 361;
+          long_index = ((361 * resolution_) + long_index) % (361 * resolution_);
 
         CellLocator cell{
             static_cast<unsigned int>(
