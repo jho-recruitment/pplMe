@@ -68,7 +68,8 @@ class SingleShotServer::Impl {
 
     if (success) {
       // Prepare to start tracking connections.
-      connection_threads_.reset(new std::map<std::thread::id, std::thread>{});
+      connection_threads_ =
+          std::make_unique<std::map<std::thread::id, std::thread>>();
 
       // Kick off the first accept (which is asynchronously "recursive").
       KickOffAccept();
@@ -153,7 +154,6 @@ class SingleShotServer::Impl {
   void HandleAcceptResult(std::shared_ptr<batcpip::socket> socket,
                           error_code const& error) {
     if (!error) {
-      // Hafta use shared rather than unique due to this not being C++14.
       auto connection =
           std::make_shared<detail::Connection>(std::move(*socket));
 
@@ -161,9 +161,8 @@ class SingleShotServer::Impl {
       if (connection_threads_) {
         std::thread connection_thread{
             [this, connection]() { Service(connection); }};
-        // Looks like gcc 4.7.2 is missing std::map::emplace().
-        (*connection_threads_)[connection_thread.get_id()] =
-            std::move(connection_thread);
+        connection_threads_->emplace(connection_thread.get_id(),
+                                      std::move(connection_thread));
       } else {
         LOG(WARNING) << "Not processing connection from "
                      << socket->remote_endpoint()

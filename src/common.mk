@@ -25,7 +25,7 @@ CPPFLAGS =  \
 	-I$(glog)/src  \
 	-I$(gflags)/include  \
 	-I$(PPLME_SRC_DIR)
-CXXFLAGS = -m64 -std=c++11 -Wall -Wextra -Werror -pedantic-errors -g -O2
+CXXFLAGS = -m64 -std=c++1y -Wall -Wextra -Werror -pedantic-errors -g -O2
 LDFLAGS = -g -O2  \
 	-L$(boost)/stage/lib  \
 	-L$(protocol_buffers)/src/.libs  \
