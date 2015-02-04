@@ -41,6 +41,7 @@ GTEST_LDLIBS = -lgtest -lgtest_main
 # Stuffs related to the library/binary at hand.
 src = $(wildcard *.cc) $(wildcard detail/*.cc)
 protos = $(wildcard *.proto)
+proto_hdrs = $(protos:.proto=.pb.h)
 objs = $(protos:.proto=.pb.o) $(src:.cc=.o)
 
 
@@ -49,8 +50,8 @@ ifneq ($(filter lib%,$(component)),)
 lib = $(patsubst lib%,lib%.a,$(component))
 .PHONY:		$(component)
 $(component):	$(lib)
-$(lib):		$(objs)
-		$(AR) $(ARFLAGS) $@ $^
+$(lib):		$(proto_hdrs) $(objs)
+		$(AR) $(ARFLAGS) $@ $(filter %.o,$^)
 else
 # Build that binary!
 $(component):	$(objs) $(ALL_PPLME_LIBS)
@@ -80,7 +81,8 @@ test:	$(tests_bin)
 # Clean all the things!
 .PHONY:	clean
 clean:
-	-rm $(tests_bin) $(tests_objs) $(lib) $(component) $(objs) 2>/dev/null
+	-rm $(tests_bin) $(tests_objs)  \
+		$(lib) $(component) $(objs) $(proto_hdrs) 2>/dev/null
 
 
 # How to build .proto.
